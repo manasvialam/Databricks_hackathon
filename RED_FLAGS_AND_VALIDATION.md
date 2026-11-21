@@ -69,7 +69,7 @@ Hour 8+    Everyone: join → trust score → ranking → measure against manual
 |---|---|---|---|---|
 | A1 | Non-standard CSV escaping (`\"` instead of `""`); a default read crashes | whole file | FIX | `pd.read_csv(..., escapechar='\\', dtype=str, keep_default_na=False)` / Spark `.option("escape","\\").option("multiLine",True)` |
 | A2 | Fragment rows (description text spilled onto new lines) | 88 | QUAR | A real row has a UUID-shaped `unique_id` |
-| A3 | Truncated records (everything after `description` empty) | 30 | **FIX** | Stitch: (1) append the fragment text to `description`; (2) the last fragment containing a JSON list holds the 24 post-description columns, with `specialties` 3 columns after its start (`area`, `numberDoctors`, `capacity` come first). Check that latitude parses as a float |
+| A3 | Truncated records (everything after `description` empty) | 30 | **FIX** | Stitch: (1) append the fragment text to `description`; (2) the last fragment containing a JSON list holds the 23 post-description columns, with `specialties` 3 columns after its start (`area`, `numberDoctors`, `capacity` come first). Check that latitude parses as a float |
 | A4 | Exact duplicate rows | 11 | FIX | `drop_duplicates()` |
 | A5 | Three encodings of missing: `null`, `""`, `[]` / `[""]` | all columns | FIX | Normalise to NaN; a list that is empty or only blanks means **no evidence** |
 | A6 | Dead or redundant columns: `countries`, `acceptsVolunteers`, `area`, `organization_type`, `address_country(Code)`, `source`, `content_table_id`, `coordinates` | 10 cols | FIX | Keep in raw; exclude from the model and UI |

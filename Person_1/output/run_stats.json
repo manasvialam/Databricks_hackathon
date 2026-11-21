@@ -1,0 +1,1010 @@
+{
+  "raw_physical_lines": 10089,
+  "raw_escaped_quotes": 3437810,
+  "raw_doubled_quotes": 67,
+  "naive_read_csv": "fails: ParserError: Error tokenizing data. C error: Expected 593 fields in line 11, saw 647\n",
+  "raw_rows_parsed": 10088,
+  "n_post_description_cols": 23,
+  "real_record_rows": 10000,
+  "fragment_rows": 88,
+  "truncated_records": 30,
+  "fragments_belonging_to_truncated": 88,
+  "truncated_repaired": 30,
+  "truncated_repair_failed": [],
+  "repair_methods": [
+    [
+      "pass1+quote",
+      28
+    ],
+    [
+      "pass1+quote, pass2+quote, lists re-joined",
+      2
+    ]
+  ],
+  "duplicate_unique_ids": 11,
+  "duplicate_rows_identical": true,
+  "duplicate_names": [
+    "Chanddni Hospital",
+    "Durgapur Sub Divisional Hospital",
+    "HCG Multi Specialty Hospital",
+    "MOSC Medical College Hospital",
+    "Malhotra Super Speciality Hospital",
+    "PPK Hospital",
+    "Sabine Hospital and Research Centre",
+    "Shraddha Heart Hospital",
+    "Trustwell Hospitals",
+    "Vanni Hospital",
+    "Yadgire Super Specialty Hospital"
+  ],
+  "rows_dropped_as_duplicates": 11,
+  "facilities_final": 9989,
+  "missing_tokens_total": {
+    "empty string": 9959,
+    "'null'": 99387,
+    "'NULL'": 1
+  },
+  "list_cleaning": [
+    {
+      "column": "source_types",
+      "json_parse_failures": 0,
+      "items_before": 272282,
+      "blank_items": 0,
+      "items_after": 20825,
+      "removed": 251457,
+      "lists_at_50_cap": 2783,
+      "facilities_now_missing": 28,
+      "empty_or_blank_only_lists_to_missing": 0
+    },
+    {
+      "column": "source_ids",
+      "json_parse_failures": 0,
+      "items_before": 225894,
+      "blank_items": 0,
+      "items_after": 49133,
+      "removed": 176761,
+      "lists_at_50_cap": 2196,
+      "facilities_now_missing": 730,
+      "empty_or_blank_only_lists_to_missing": 702
+    },
+    {
+      "column": "phone_numbers",
+      "json_parse_failures": 0,
+      "items_before": 96573,
+      "blank_items": 4,
+      "items_after": 39667,
+      "removed": 56906,
+      "lists_at_50_cap": 244,
+      "facilities_now_missing": 281,
+      "empty_or_blank_only_lists_to_missing": 0
+    },
+    {
+      "column": "websites",
+      "json_parse_failures": 0,
+      "items_before": 186439,
+      "blank_items": 19,
+      "items_after": 162892,
+      "removed": 23547,
+      "lists_at_50_cap": 1360,
+      "facilities_now_missing": 0,
+      "empty_or_blank_only_lists_to_missing": 0
+    },
+    {
+      "column": "affiliationTypeIds",
+      "json_parse_failures": 0,
+      "items_before": 5897,
+      "blank_items": 4,
+      "items_after": 1614,
+      "removed": 4283,
+      "lists_at_50_cap": 16,
+      "facilities_now_missing": 8764,
+      "empty_or_blank_only_lists_to_missing": 10
+    },
+    {
+      "column": "specialties",
+      "json_parse_failures": 0,
+      "items_before": 279371,
+      "blank_items": 9,
+      "items_after": 118548,
+      "removed": 160823,
+      "lists_at_50_cap": 2884,
+      "facilities_now_missing": 0,
+      "empty_or_blank_only_lists_to_missing": 0
+    },
+    {
+      "column": "procedure",
+      "json_parse_failures": 0,
+      "items_before": 167903,
+      "blank_items": 3631,
+      "items_after": 156227,
+      "removed": 11676,
+      "lists_at_50_cap": 1128,
+      "facilities_now_missing": 1118,
+      "empty_or_blank_only_lists_to_missing": 1088
+    },
+    {
+      "column": "equipment",
+      "json_parse_failures": 0,
+      "items_before": 60307,
+      "blank_items": 4078,
+      "items_after": 52851,
+      "removed": 7456,
+      "lists_at_50_cap": 185,
+      "facilities_now_missing": 2856,
+      "empty_or_blank_only_lists_to_missing": 2745
+    },
+    {
+      "column": "capability",
+      "json_parse_failures": 0,
+      "items_before": 232949,
+      "blank_items": 831,
+      "items_after": 223982,
+      "removed": 8967,
+      "lists_at_50_cap": 1718,
+      "facilities_now_missing": 41,
+      "empty_or_blank_only_lists_to_missing": 34
+    },
+    {
+      "column": "source_urls",
+      "json_parse_failures": 0,
+      "items_before": 170096,
+      "blank_items": 0,
+      "items_after": 161887,
+      "removed": 8209,
+      "lists_at_50_cap": 1240,
+      "facilities_now_missing": 0,
+      "empty_or_blank_only_lists_to_missing": 0
+    }
+  ],
+  "flag_list_truncated": 3226,
+  "dead_columns": {
+    "countries": {
+      "non_null": 0,
+      "distinct_values": 0
+    },
+    "acceptsVolunteers": {
+      "non_null": 21,
+      "distinct_values": 2
+    },
+    "area": {
+      "non_null": 125,
+      "distinct_values": 93
+    },
+    "organization_type": {
+      "non_null": 9989,
+      "distinct_values": 1,
+      "values": {
+        "facility": 9989
+      }
+    },
+    "address_country": {
+      "non_null": 9989,
+      "distinct_values": 1,
+      "values": {
+        "India": 9989
+      }
+    },
+    "address_countryCode": {
+      "non_null": 9989,
+      "distinct_values": 1,
+      "values": {
+        "IN": 9989
+      }
+    },
+    "source": {
+      "non_null": 9989,
+      "distinct_values": 1,
+      "values": {
+        "kie": 9989
+      }
+    },
+    "content_table_id": {
+      "non_null": 9989,
+      "distinct_values": 9067,
+      "equals_source_content_id_pct": 100.0
+    },
+    "coordinates": {
+      "non_null": 9989,
+      "distinct_values": 9947,
+      "equals_latitude_longitude": true
+    }
+  },
+  "unparsed_date_values": {
+    "recency_of_page_update": [
+      "1 month ago",
+      "2 months ago",
+      "2024",
+      "2025",
+      "3 weeks ago",
+      "3 years before",
+      "8 months ago",
+      "April 2025",
+      "October 2025"
+    ],
+    "post_metrics_most_recent_social_media_post_date": [
+      "12 February",
+      "13 March",
+      "2 months ago",
+      "6 January",
+      "9h",
+      "April 10",
+      "April 6",
+      "April 9 at 5:54 AM",
+      "February 13",
+      "February 17",
+      "February 25",
+      "January 10",
+      "March 4",
+      "November 13",
+      "October 20",
+      "September 6"
+    ]
+  },
+  "type_conversion_failures": {
+    "yearEstablished": 0,
+    "numberDoctors": 0,
+    "capacity": 0,
+    "distinct_social_media_presence_count": 0,
+    "number_of_facts_about_the_organization": 0,
+    "post_metrics_post_count": 0,
+    "engagement_metrics_n_followers": 0,
+    "engagement_metrics_n_likes": 0,
+    "engagement_metrics_n_engagements": 0,
+    "latitude": 0,
+    "longitude": 0,
+    "recency_of_page_update": 11,
+    "post_metrics_most_recent_social_media_post_date": 18
+  },
+  "facilityTypeId_before": {
+    "hospital": 5626,
+    "clinic": 3782,
+    "dentist": 490,
+    "<missing>": 57,
+    "doctor": 21,
+    "farmacy": 10,
+    "pharmacy": 2,
+    "nursing_home": 1
+  },
+  "operatorTypeId_before": {
+    "private": 8835,
+    "<missing>": 687,
+    "public": 465,
+    "government": 2
+  },
+  "facilityTypeId_after": {
+    "hospital": 5626,
+    "clinic": 3782,
+    "dentist": 490,
+    "<missing>": 57,
+    "doctor": 21,
+    "pharmacy": 12,
+    "nursing_home": 1
+  },
+  "operatorTypeId_after": {
+    "private": 8835,
+    "<missing>": 687,
+    "public": 467
+  },
+  "specialties": {
+    "distinct_before": 2927,
+    "distinct_after": 2476,
+    "spellings_merged": 451,
+    "facility_mentions_changed": 824,
+    "code_like_after": 2060,
+    "not_code_like_after": 416,
+    "used_by_one_facility_after": 1579,
+    "internalMedicine_share_pct": 68.6,
+    "examples_merged": [
+      [
+        "Physiotherapy",
+        "physiotherapy"
+      ],
+      [
+        "Cardiology",
+        "cardiology"
+      ],
+      [
+        "Urology",
+        "urology"
+      ],
+      [
+        "oralAndMaxilloFacialSurgery",
+        "oralAndMaxillofacialSurgery"
+      ],
+      [
+        "Orthodontics",
+        "orthodontics"
+      ],
+      [
+        "Orthopaedics",
+        "orthopaedics"
+      ],
+      [
+        "neuroSurgery",
+        "neurosurgery"
+      ],
+      [
+        "Neurosurgery",
+        "neurosurgery"
+      ],
+      [
+        "Neurology",
+        "neurology"
+      ],
+      [
+        "Nephrology",
+        "nephrology"
+      ],
+      [
+        "General Surgery",
+        "generalSurgery"
+      ],
+      [
+        "Gastroenterology",
+        "gastroenterology"
+      ]
+    ],
+    "examples_rare_kept": [
+      "24 hrs Diagnostics",
+      "24 hrs Digital X Ray",
+      "3D-4D Sonography and Ultrasound",
+      "3d_4d_Sonography",
+      "ABO-i Kidney Transplant",
+      "AV Fistula creation for dialysis",
+      "Abbe Flap Ca Lip",
+      "Accident & Trauma",
+      "Acne Scar Treatment",
+      "Acupressure",
+      "All on 4/6 implant",
+      "Anaesthesia & Critical Care",
+      "Anaesthesia & Intensive Care",
+      "Anaesthesiology & Critical Care",
+      "Anal Abscess"
+    ],
+    "top_not_code_like": [
+      [
+        "developmental\u2013behavioralPediatrics",
+        146
+      ],
+      [
+        "TMJSurgery",
+        17
+      ],
+      [
+        "ENT/ Otorhinolaryngologist",
+        8
+      ],
+      [
+        "orth orthopedicSurgery",
+        7
+      ],
+      [
+        "Obstetrics & Gynaecology",
+        6
+      ],
+      [
+        "IVF",
+        5
+      ],
+      [
+        "GI Surgery",
+        4
+      ],
+      [
+        "Cryopreservation",
+        3
+      ],
+      [
+        "IVF Treatment",
+        3
+      ],
+      [
+        "IUI",
+        3
+      ]
+    ]
+  },
+  "numeric": {
+    "numberDoctors": {
+      "present": 3635,
+      "zero_to_missing": 13,
+      "over_1000_kept_flagged": 11,
+      "over_1000_rows": [
+        [
+          "Wockhardt Hospital",
+          "Nagpur",
+          "hospital",
+          "1400"
+        ],
+        [
+          "Sahyadri Hospitals",
+          "Pune",
+          "hospital",
+          "2000"
+        ],
+        [
+          "Vijaya Diagnostic Centre - Main Road Gopalapatnam, Visakhapatnam",
+          "Visakhapatnam",
+          "clinic",
+          "3000"
+        ],
+        [
+          "Kims Hospital",
+          "Hyderabad",
+          "hospital",
+          "6000"
+        ],
+        [
+          "Asian Eye Hospital",
+          "Pune",
+          "hospital",
+          "1100"
+        ],
+        [
+          "Nova IVF Fertility",
+          "Bengaluru",
+          "clinic",
+          "1500"
+        ],
+        [
+          "Megavision Diagnostic Centres, Pimpri",
+          "Pimpri-chinchwad",
+          "clinic",
+          "3000"
+        ],
+        [
+          "Scientific Pathology",
+          "Agra",
+          "hospital",
+          "5000"
+        ],
+        [
+          "Medall Diagnostics",
+          "Chennai",
+          "clinic",
+          "2500"
+        ],
+        [
+          "Nithya Hospital",
+          "Dharmapuri",
+          "hospital",
+          "15000"
+        ],
+        [
+          "Narhari Hospital",
+          "Vadodara",
+          "hospital",
+          "2860"
+        ]
+      ],
+      "small_type_over_50_flagged": 22
+    },
+    "capacity": {
+      "present": 2516,
+      "zero_to_missing": 13,
+      "over_3000_kept_flagged": 2,
+      "over_3000_rows": [
+        [
+          "King George's Medical University, Lucknow",
+          "Lucknow",
+          "4000"
+        ],
+        [
+          "Harsh Hospital",
+          "Motihari",
+          "200000"
+        ]
+      ],
+      "small_type_over_200_flagged": 10
+    },
+    "yearEstablished": {
+      "present": 4775,
+      "not_a_year_to_missing": 5,
+      "not_a_year_rows": [
+        [
+          "Sri Krishna Hospital (Proddutur)",
+          "Proddutur",
+          "7"
+        ],
+        [
+          "Medini Cosmetic Surgery Centre, KPHB Colony",
+          "Hyderabad",
+          "15"
+        ],
+        [
+          "Purba Medinipur District Hospital",
+          "Tamluk",
+          "0"
+        ],
+        [
+          "Kamti Healthcare Diagnostics",
+          "Siliguri",
+          "0"
+        ],
+        [
+          "Dr. Jairaj's Hospital - 2nd Floor, Om Chanakya Complex, Sector 6, CBD Belapur, Navi Mumbai, Maharashtra 400614",
+          "Navi Mumbai",
+          "0"
+        ]
+      ],
+      "before_1800_kept_flagged": 2,
+      "before_1800_rows": [
+        [
+          "INHS Asvini",
+          "Mumbai",
+          "1756"
+        ],
+        [
+          "Changethu Ayurveda Hospital",
+          "Pathanamthitta",
+          "1723"
+        ]
+      ]
+    },
+    "one_doctor_many_beds": 73,
+    "numberDoctors_eq_1": 1198,
+    "size_band": {
+      "unknown": 7486,
+      "large (100-499 beds)": 1032,
+      "medium (30-99 beds)": 766,
+      "small (<30 beds)": 451,
+      "very large / super-speciality scale (500+ beds)": 254
+    },
+    "doctor_band": {
+      "unknown": 6367,
+      "2-9 doctors": 1512,
+      "1 doctor": 1198,
+      "10-49 doctors": 603,
+      "very large / super-speciality scale (100+ doctors)": 178,
+      "50-99 doctors": 131
+    },
+    "capacity_multiple_of_10_pct": 70.7,
+    "missing_after_cleaning_pct": {
+      "capacity": 74.9,
+      "numberDoctors": 63.7,
+      "yearEstablished": 52.2
+    },
+    "clinic_capacity_missing_pct": 96.9
+  },
+  "display_name": {
+    "names_with_pin": 121,
+    "shortened": 121,
+    "examples": [
+      [
+        "Meditech Diagnostics and Polyclinic,Shop No 9 &10,Zinnia Elegans,Wakad,Hinjewadi,Pimpri Chinchwad,Pune 411057 (Time 2pm To 5pm)",
+        "Meditech Diagnostics and Polyclinic"
+      ],
+      [
+        "The Corporate Hospital - Batala Road, Amritsar-143001, Punjab, India",
+        "The Corporate Hospital"
+      ],
+      [
+        "Pathankot Kidney Hospital & Stone Clinic Near Peer Baba, Patel Chowk, Pathankot(Pb.) 145001.",
+        "Pathankot Kidney Hospital & Stone Clinic"
+      ],
+      [
+        "Hi-Tech Emergency Hospital \u2013 Saguna More, Bailey Road, Patna-801503",
+        "Hi-Tech Emergency Hospital"
+      ],
+      [
+        "Dr. Mutha Hospital, P - 67, MIDC, Satpur, Near ITI, Trambk Road, Nashik - 422007",
+        "Dr. Mutha Hospital"
+      ],
+      [
+        "Redcliffe Labs - Collection Center Ground Floor, Jitan Chowk, Dighi Kala West, Near Station Road Plat Form No 5 Hajipur, Bihar - 844101",
+        "Redcliffe Labs"
+      ],
+      [
+        "KIMSHEALTH Al-Shifa Super Speciality Hospital, Ootty, Road, Perintalmanna, Kerala 679322",
+        "KIMSHEALTH Al-Shifa Super Speciality Hospital"
+      ],
+      [
+        "Amulya Jyoti Eye Foundation \u2014 22/26, Monohar Pukur Road, GS Tower-1st Floor, Kolkata, West Bengal 700029",
+        "Amulya Jyoti Eye Foundation"
+      ],
+      [
+        "Government Dharmapuri Medical College, Nethaji Byebass Road, Dharmapuri \u2013 636701 (Tamilnadu)",
+        "Government Dharmapuri Medical College"
+      ],
+      [
+        "Nagpal Nursing & Maternity Home - Kurukshetra Sector 17, Kurukshetra Red Road, Sector 17, Kurukshetra-136118, Haryana",
+        "Nagpal Nursing & Maternity Home"
+      ],
+      [
+        "Pooja Surgical Hospital - Vanshiro House, 30 Karan Para, 2nd Floor, Karansinhji Main Road, Rajkot-360001, Gujarat",
+        "Pooja Surgical Hospital"
+      ],
+      [
+        "Gabani Kidney Hospital - Dhan-Laxmi Complex, Nr. Ayurved College, Station-Lal Darwaja Road, Surat-395 003, Gujarat, India",
+        "Gabani Kidney Hospital"
+      ],
+      [
+        "Tathagat Heart Hospital - 31 Crescent Road, 1st Floor, Mallige Premises, Bengaluru, Karnataka 560001",
+        "Tathagat Heart Hospital"
+      ],
+      [
+        "Esthetica International Clinique - 95P First Floor, Sector 47, Gurgaon, Haryana - 122018, India, South City ii, Gurugram",
+        "Esthetica International Clinique"
+      ],
+      [
+        "Oncowin Cancer Center - 513-515, Shivalik Square, Opp. Ranip GSRTC Bus Stand, Nava Vadaj, Ahmedabad, Gujarat 380013, India",
+        "Oncowin Cancer Center"
+      ]
+    ],
+    "unchanged_with_pin": []
+  },
+  "duplicate_groups": {
+    "by_rule": {
+      "name+city": {
+        "groups": 8,
+        "rows": 16
+      },
+      "name+PIN": {
+        "groups": 4,
+        "rows": 8
+      }
+    },
+    "groups_total": 9,
+    "confidence": {
+      "likely": 5,
+      "possible": 4
+    },
+    "rows_in_groups": 18,
+    "non_primary_rows": 5,
+    "examples": [
+      [
+        "dup_09913236",
+        "likely",
+        "Devmata Hospital",
+        "Bhopal",
+        "462041",
+        "23.26839256286621",
+        "77.47319030761719",
+        "False"
+      ],
+      [
+        "dup_09913236",
+        "likely",
+        "D evmata Hospital",
+        "Bhopal",
+        "462021",
+        "23.26844024658203",
+        "77.47343444824219",
+        "True"
+      ],
+      [
+        "dup_14f54bc7",
+        "likely",
+        "Sarla Hospital",
+        "Mumbai",
+        "400054",
+        "19.08576202392578",
+        "72.83676147460938",
+        "True"
+      ],
+      [
+        "dup_14f54bc7",
+        "likely",
+        "Sarla Hospital",
+        "Mumbai",
+        "400054",
+        "20.923336029052734",
+        "77.75265502929688",
+        "False"
+      ],
+      [
+        "dup_3477b64c",
+        "likely",
+        "Rajindra Hospital, Patiala",
+        "Patiala",
+        "147001",
+        "30.33260154724121",
+        "76.38188171386719",
+        "True"
+      ],
+      [
+        "dup_3477b64c",
+        "likely",
+        "Rajindra Hospital Patiala",
+        "Patiala",
+        "147001",
+        "30.328777313232425",
+        "76.38433837890625",
+        "False"
+      ],
+      [
+        "dup_87aa7bed",
+        "likely",
+        "32 Pearls Dental Clinic",
+        "Mumbai",
+        "400071",
+        "18.505809783935547",
+        "73.90228271484375",
+        "True"
+      ],
+      [
+        "dup_87aa7bed",
+        "likely",
+        "32 Pearls Dental Clinic",
+        "Chembur",
+        "400071",
+        "19.089065551757812",
+        "73.01273345947266",
+        "False"
+      ],
+      [
+        "dup_9b47971c",
+        "possible",
+        "Om Dental Clinic",
+        "Ahmedabad",
+        "380043",
+        "23.03835678100586",
+        "72.49617767333984",
+        "True"
+      ],
+      [
+        "dup_9b47971c",
+        "possible",
+        "Om Dental Clinic",
+        "Ahmedabad",
+        "361006",
+        "23.573287963867188",
+        "70.64775085449219",
+        "True"
+      ],
+      [
+        "dup_a74aad4c",
+        "possible",
+        "Ortho Care Clinic",
+        "Lucknow",
+        "208006",
+        "26.865259170532227",
+        "80.90458679199219",
+        "True"
+      ],
+      [
+        "dup_a74aad4c",
+        "possible",
+        "Orthocare Clinic",
+        "Lucknow",
+        "226010",
+        "26.871116638183594",
+        "81.02288055419922",
+        "True"
+      ],
+      [
+        "dup_aa4b8ccc",
+        "possible",
+        "Care Dental Hospital",
+        "Bangalore",
+        "560032",
+        "13.007463455200195",
+        "77.57099914550781",
+        "True"
+      ],
+      [
+        "dup_aa4b8ccc",
+        "possible",
+        "Care Dental Hospital",
+        "Bangalore",
+        "560070",
+        "12.919207572937012",
+        "77.55781555175781",
+        "True"
+      ],
+      [
+        "dup_e033c5f0",
+        "likely",
+        "Siri Dental Hospital",
+        "Hyderabad",
+        "500060",
+        "17.463529586791992",
+        "78.36740112304688",
+        "True"
+      ],
+      [
+        "dup_e033c5f0",
+        "likely",
+        "Siri Dental Hospital",
+        "Hyderabad",
+        "500060",
+        "17.47749900817871",
+        "78.30687713623047",
+        "False"
+      ],
+      [
+        "dup_e0fcd8ad",
+        "possible",
+        "Government Medical College, Thiruvananthapuram",
+        "Thiruvananthapuram",
+        "695009",
+        "9.408109664916992",
+        "76.34742736816406",
+        "True"
+      ],
+      [
+        "dup_e0fcd8ad",
+        "possible",
+        "Government Medical College, Thiruvananthapuram",
+        "Thiruvananthapuram",
+        "695011",
+        "8.523643493652344",
+        "76.92828369140625",
+        "True"
+      ]
+    ]
+  },
+  "rows_with_any_reason": 3282,
+  "missing_after_cleaning_pct": {
+    "specialties": 0.0,
+    "procedure": 11.2,
+    "equipment": 28.6,
+    "capability": 0.4,
+    "description": 0.0,
+    "numberDoctors": 63.7,
+    "capacity": 74.9,
+    "yearEstablished": 52.2,
+    "latitude": 0.0,
+    "officialPhone": 5.0
+  },
+  "nfhs": {
+    "rows": 706,
+    "indicators": 107,
+    "cells": 75542,
+    "suppressed_star_to_missing": 4125,
+    "low_reliability_parenthesised": 5068,
+    "unparsed_cells": 0,
+    "states_fixed": {
+      "MAHARASTRA": "MAHARASHTRA",
+      "NCT OF DELHI": "DELHI",
+      "JAMMU & KASHMIR": "JAMMU AND KASHMIR",
+      "ANDAMAN & NICOBAR ISLANDS": "ANDAMAN AND NICOBAR ISLANDS",
+      "DADRA AND NAGAR HAVELI & DAMAN AND DIU": "THE DADRA AND NAGAR HAVELI AND DAMAN AND DIU"
+    },
+    "states_not_matching_india_post": [],
+    "district_names_in_multiple_states": [
+      "Aurangabad",
+      "Balrampur",
+      "Bijapur",
+      "Bilaspur",
+      "Chandel",
+      "Hamirpur",
+      "Pratapgarh",
+      "Raigarh"
+    ],
+    "join_key_unique": true
+  },
+  "output_fac_base_shape": [
+    9989,
+    105
+  ],
+  "output_columns": {
+    "total": 105,
+    "flags": 10,
+    "raw": 34,
+    "derived": 18
+  },
+  "output_nfhs_shape": [
+    706,
+    219
+  ],
+  "output_quarantine_rows": 88,
+  "flag_counts": {
+    "flag_beds_high_for_type": 10,
+    "flag_capacity_extreme": 2,
+    "flag_doctors_extreme": 11,
+    "flag_doctors_high_for_type": 22,
+    "flag_list_truncated": 3226,
+    "flag_one_doctor_many_beds": 73,
+    "flag_possible_duplicate": 18,
+    "flag_repaired_record": 30,
+    "flag_year_invalid": 5,
+    "flag_year_very_old": 2
+  },
+  "column_list": [
+    "unique_id",
+    "source_types",
+    "source_ids",
+    "source_content_id",
+    "name",
+    "phone_numbers",
+    "officialPhone",
+    "email",
+    "websites",
+    "officialWebsite",
+    "yearEstablished",
+    "facebookLink",
+    "address_line1",
+    "address_line2",
+    "address_line3",
+    "address_city",
+    "address_stateOrRegion",
+    "address_zipOrPostcode",
+    "facilityTypeId",
+    "operatorTypeId",
+    "affiliationTypeIds",
+    "description",
+    "numberDoctors",
+    "capacity",
+    "specialties",
+    "procedure",
+    "equipment",
+    "capability",
+    "recency_of_page_update",
+    "distinct_social_media_presence_count",
+    "affiliated_staff_presence",
+    "custom_logo_presence",
+    "number_of_facts_about_the_organization",
+    "post_metrics_most_recent_social_media_post_date",
+    "post_metrics_post_count",
+    "engagement_metrics_n_followers",
+    "engagement_metrics_n_likes",
+    "engagement_metrics_n_engagements",
+    "latitude",
+    "longitude",
+    "cluster_id",
+    "source_urls",
+    "display_name",
+    "size_band",
+    "doctor_band",
+    "dup_group_id",
+    "dup_confidence",
+    "is_primary",
+    "specialties_informative",
+    "specialties_rare",
+    "n_affiliationTypeIds",
+    "n_capability",
+    "n_equipment",
+    "n_phone_numbers",
+    "n_procedure",
+    "n_source_ids",
+    "n_source_types",
+    "n_source_urls",
+    "n_specialties",
+    "n_websites",
+    "flag_beds_high_for_type",
+    "flag_capacity_extreme",
+    "flag_doctors_extreme",
+    "flag_doctors_high_for_type",
+    "flag_list_truncated",
+    "flag_one_doctor_many_beds",
+    "flag_possible_duplicate",
+    "flag_repaired_record",
+    "flag_year_invalid",
+    "flag_year_very_old",
+    "reasons",
+    "raw_acceptsVolunteers",
+    "raw_address_country",
+    "raw_address_countryCode",
+    "raw_affiliationTypeIds",
+    "raw_area",
+    "raw_capability",
+    "raw_capacity",
+    "raw_content_table_id",
+    "raw_coordinates",
+    "raw_countries",
+    "raw_description_truncated",
+    "raw_equipment",
+    "raw_facilityTypeId",
+    "raw_numberDoctors",
+    "raw_operatorTypeId",
+    "raw_organization_type",
+    "raw_phone_numbers",
+    "raw_post_metrics_most_recent_social_media_post_date",
+    "raw_procedure",
+    "raw_recency_of_page_update",
+    "raw_source",
+    "raw_source_ids",
+    "raw_source_types",
+    "raw_source_urls",
+    "raw_specialties",
+    "raw_websites",
+    "raw_yearEstablished",
+    "rawlen_capability",
+    "rawlen_equipment",
+    "rawlen_phone_numbers",
+    "rawlen_procedure",
+    "rawlen_source_urls",
+    "rawlen_specialties",
+    "rawlen_websites"
+  ]
+}

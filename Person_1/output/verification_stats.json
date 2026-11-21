@@ -1,0 +1,168 @@
+{
+  "wikidata": {
+    "items": 3105,
+    "with_coords": 2709,
+    "with_inception": 704,
+    "with_beds": 106,
+    "with_website": 787,
+    "with_en_wikipedia": 611
+  },
+  "wikidata_rejected_by_audit": [
+    [
+      "ddfc13b1-edd5-4950-bf42-76317a817e54",
+      "Q39052559",
+      "Sri Venkateswara Medical College"
+    ],
+    [
+      "d22fe25f-42d6-4d2f-bff9-4f94f7c99816",
+      "Q6437413",
+      "Krishna Heart Institute"
+    ],
+    [
+      "35075c4b-0e23-4c0a-b01d-ccc77fe07963",
+      "Q17146020",
+      "Yerwada Mental Hospital"
+    ],
+    [
+      "82c5dd40-e186-454c-97f0-ab46b45839b9",
+      "Q6040494",
+      "Institute of Liver and Biliary Sciences"
+    ]
+  ],
+  "wikidata_match": {
+    "candidate_matches": 302,
+    "dropped_as_second_claim_on_same_item": 17,
+    "matched_facilities": 285,
+    "by_method": {
+      "official website + name + location (<=15 km)": 150,
+      "name + location (<=5 km)": 130,
+      "name + location (<=15 km)": 5
+    },
+    "with_inception": 190,
+    "with_beds": 41,
+    "with_en_wikipedia": 147,
+    "distance_km_median": 0.13
+  },
+  "address": {
+    "pin_source": {
+      "postcode field": 9908,
+      "none": 81
+    },
+    "pin_valid": 9700,
+    "city_matches_pin": {
+      "True": 8420,
+      "False": 1280,
+      "nan": 289
+    },
+    "km_to_pin_median": 2.4,
+    "address_check": {
+      "verified": 6378,
+      "conflict": 1470,
+      "consistent": 1145,
+      "partly consistent": 707,
+      "unverifiable (no valid PIN)": 283,
+      "partly verified (Wikidata location only)": 6
+    }
+  },
+  "year_check": {
+    "missing": 4995,
+    "consistent with own text": 2978,
+    "unverified": 1379,
+    "conflicts with own text": 245,
+    "missing - other source has a year": 200,
+    "confirmed (Wikidata)": 116,
+    "disputed: record vs Wikidata": 24,
+    "filled from Wikidata": 24,
+    "close to Wikidata (2-5 years apart)": 18,
+    "confirmed by web check": 4,
+    "corrected from web check": 3,
+    "web: unverified (disputed)": 2,
+    "web: unverified (family tradition, not hospital founding)": 1
+  },
+  "capacity_check": {
+    "missing": 7482,
+    "consistent with own text": 1585,
+    "unverified": 743,
+    "differs from own text": 135,
+    "confirmed (Wikidata)": 25,
+    "disputed: record vs Wikidata": 12,
+    "filled from Wikidata": 4,
+    "corrected from web check": 1,
+    "confirmed by web check": 1,
+    "web: contradicted": 1
+  },
+  "doctors_check": {
+    "missing": 6367,
+    "unverified": 3042,
+    "consistent with own text": 412,
+    "differs from own text": 157,
+    "web: contradicted": 6,
+    "web: chain-wide figure": 1,
+    "web: contradicted (company-wide doctors = 300+)": 1,
+    "web: unverified (chain-wide at most)": 1,
+    "web: chain-wide figure (unconfirmed)": 1,
+    "web: unverified": 1
+  },
+  "text_mentions": {
+    "year": 3551,
+    "beds": 1947,
+    "doctors": 704
+  },
+  "manual_web_checks": {
+    "rows": 24,
+    "facilities": 23,
+    "verdicts": {
+      "contradicted": 8,
+      "confirmed": 2,
+      "unverified (disputed)": 2,
+      "unverified (family tradition, not hospital founding)": 1,
+      "chain-wide figure": 1,
+      "unverified": 1,
+      "contradicted (company-wide doctors = 300+)": 1,
+      "chain-wide figure (unconfirmed)": 1,
+      "unverified (chain-wide at most)": 1,
+      "confirmed (record correct; Wikidata 2002 = upgrade)": 1,
+      "contradicted (hospital opened 2008)": 1,
+      "contradicted (2007 per official filing)": 1,
+      "confirmed (record correct; Wikidata 1691 = precursor)": 1,
+      "contradicted (hospital opened 1999)": 1,
+      "confirmed (record correct)": 1
+    }
+  },
+  "value_disputes": {
+    "total": 36,
+    "by_field": {
+      "yearEstablished": 24,
+      "capacity": 12
+    }
+  },
+  "value_corrections": {
+    "total": 32,
+    "replaced": 4,
+    "filled": 28,
+    "by_type": {
+      "capacity / filled / Wikidata": 4,
+      "capacity / replaced / web": 1,
+      "yearEstablished / filled / Wikidata": 24,
+      "yearEstablished / replaced / web": 3
+    }
+  },
+  "recognition": {
+    "tier": {
+      "no evidence found": 7203,
+      "some": 2185,
+      "moderate": 435,
+      "high": 166
+    },
+    "components": {
+      "en_wikipedia": 147,
+      "wikidata_only": 138,
+      "nabh_or_jci_claim": 1314,
+      "teaching": 495
+    }
+  },
+  "output_shape": [
+    9989,
+    148
+  ]
+}
