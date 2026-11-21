@@ -34,7 +34,7 @@ jupyter lab Person2_Geo.ipynb          # or open it in VS Code and Run All
 
 ```python
 import geo_pipeline as gp, geocoder as G
-base, _ = gp.load_base("../Dataset/facilities.csv")            # swap in Person 1's fac_base when available
+base = pd.read_parquet("../Person_1/output/fac_base.parquet")   # Person 1's table (pip install pyarrow)          
 ref     = gp.build_reference("../Dataset/india_post_pincode_directory.csv")
 osm     = pd.read_csv("outputs/osm_health_poi.csv")    # optional; omit to skip the OpenStreetMap check
 geo     = gp.build_fac_geo(base, ref, osm=osm)         # ~50 s with OSM, ~15 s without
@@ -79,7 +79,7 @@ Every row has `reasons`: a JSON list of plain sentences for the "Why this facili
 
 ## Known limits
 
-* **30 truncated records have no coordinates** here (`geo_status` is `pin_only` or `invalid`) because stitching them is Person 1's task. Re-run with P1's `fac_base`.
+* **Base table:** built on Person 1's stitched `Person_1/output/fac_base.parquet` (9,989 rows). The 30 repaired records now have coordinates: 24 verified, 5 approximate (PIN centre), 1 unverified. Reading Parquet needs `pip install pyarrow`; without Person 1's file the notebook falls back to a stand-in base (which has no coordinates for those 30).
 * **OpenStreetMap corroboration (L3) is done.** `fetch_osm.py` downloaded **87,469** named hospitals/clinics/doctors/dentists (4.9 MB, `outputs/osm_health_poi.csv`) for 35 of 36 states/UTs; Lakshadweep failed twice (the dataset has no facilities there). A facility counts as matched when an OSM place with a >= 80% similar name lies within 2 km of its coordinates or its PIN centroid: **3,379 facilities (33.8%)**. OSM coverage is incomplete, so a miss is not evidence of a wrong location. Where OSM could arbitrate a coordinate-vs-PIN conflict (799 of 1,924), it sided with the coordinates 609 times and with the PIN 190 times.
 * **District-by-PIN is approximate** where a PIN spans districts (6.5% of PINs) and where district boundaries have changed since the directory was built. `flag_district_conflict` marks facilities where the PIN and the coordinates disagree.
 * **NFHS match:** 704 of 706 NFHS districts map to an India Post district. `Chandel` (filed under Mizoram in NFHS, which looks like a source error) and `Warangal Rural` (India Post has a single Warangal) are left unmatched.
@@ -102,6 +102,7 @@ df.write.mode("overwrite").saveAsTable("<catalog>.<schema>.fac_geo")
 
 ## Hand-offs
 
-* **Person 1:** call `build_fac_geo(base=fac_base, reference=ref)` once `fac_base` exists; it fills the 30 stitched records.
+* **Person 1:** done, thank you. `fac_geo` is built on `fac_base.parquet`. If `fac_base` is re-issued, re-run `build_fac_geo(base=fac_base, reference=ref, osm=osm)` (about 45 s).
+* **Final join:** `fac_base` and `fac_geo` share these column names: `city_matches_pin, pin6, pin_district, pin_lat, pin_lon, pin_source, pin_state, pin_valid, reasons, state_norm`. Prefix one side (for example `geo_`) before joining the four tables. On the overlapping fields the two tables agree on about 99.9% of rows (PIN, state); `city_matches_pin` agrees on 94.6% because this table applies more rules (Delhi-style city names, nearby-place check).
 * **Person 3:** `merge_suspect_score` location inputs are `flag_geo_mismatch_100km` (B6) and `flag_multiple_pins` (B10); `flag_shared_coords` and `flag_district_conflict` are optional extra signals.
 * **Person 4 / ranking:** use `best_lat`, `best_lon` for distance and `location_trust` (label) / `location_trust_score` (0-1) inside `facility_trust`. Show `location_precision` so a `pin_centroid` result is never presented as an exact address.
