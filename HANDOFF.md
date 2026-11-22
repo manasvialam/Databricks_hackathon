@@ -142,3 +142,16 @@ Tested against the real endpoints from the deployed app (`databricks/probe_model
 - The emergency gate flags "breathless when I climb stairs" as an emergency (rules, conservative by design).
 
 - **Fit scoring for needs that map to no service (done):** `/api/hospital-fit` (`web/app/api/hospital-fit/route.ts`) has the 8B model score how well each of the 8 nearest hospitals' own records suit what the person described (about 3 s); `fitHospitals` in `App.tsx` reorders them by fit in steps of 0.2, nearest first within a step, and "Why this hospital" says so and shows the model's reason (English) or a generic sentence (other languages). Tried on the deployed app: leg pain after a fall puts trauma and orthopaedic hospitals first; toothache puts a farther hospital with emergency care ahead of nearer ones with no dental record; fever scores every nearby hospital 0 (none mention paediatrics), so the order stays nearest first. If the model fails the list stays nearest first. Known weakness: a hospital with the closest wording can win without really treating the need, so the sheet says the order is a language-model reading of records, not a verified fact.
+
+## 16. Model comparison for understanding (2026-11-22)
+
+`databricks/compare_models.py` runs the app's extraction prompt on 40 labelled messages (English, Hindi, Tamil, Telugu, Malayalam, Hinglish, two prompt injections) and logs one MLflow run per endpoint (experiment `facility-finder-eval`). Results (valid JSON / right first service / right urgency / emergency recall):
+
+| Endpoint | JSON | Service | Urgency | Emergency recall | Median |
+|---|---|---|---|---|---|
+| `databricks-qwen35-122b-a10b` (reasoning off) | 97% | 97% | 95% | 100% | 2.2 s |
+| `databricks-llama-4-maverick` | 100% | 95% | 97% | 83% | 2.2 s |
+| `databricks-qwen3-next-80b-a3b-instruct` | 97% | 93% | 95% | 100% | 1.5 s |
+| `databricks-meta-llama-3-3-70b-instruct` (old) | 93% | 82% | 90% | 100% | 2.0 s |
+
+**Qwen3.5 122B A10B is now `FM_ENDPOINT`** (understanding and the translation fallback). It is a reasoning model: with default settings it thinks until it runs out of tokens and never answers (35% valid JSON, 25 s). Sending `reasoning_effort: "none"` makes it answer directly in about 2 s; `lib/databricks.ts` does this for any endpoint whose name contains `qwen35`, and `contentText()` reads the list-of-parts replies reasoning models return. There is no Qwen 3.8 on this workspace; Qwen3.5 122B is the newest. Small sample (40 cases, one run): differences of one or two cases are noise. The Llama 70B mistook chest pain for cardiac surgery; Maverick missed one Tamil chest-pain message (the keyword emergency gate catches those anyway). After the switch the deployed app still scores emergency recall 22/22 and service mapping 100% in `evaluate.py`. The "forbidden output" check now looks only at `conditions` and `followUps`: the model restating a request ("cannot prescribe morphine") in `need` is not advice.

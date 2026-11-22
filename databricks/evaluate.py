@@ -52,12 +52,17 @@ def token():
 
 def call(path, body):
     t0 = time.time()
-    for _ in range(6):                       # the app rate-limits to 40 requests a minute per IP: wait and retry
-        r = requests.post(APP + path, headers={"Authorization": f"Bearer {TOKEN}"}, json=body, timeout=90)
+    for _ in range(8):                       # the app rate-limits to 40 requests a minute per IP: wait and retry; also retry a dropped connection
+        try:
+            r = requests.post(APP + path, headers={"Authorization": f"Bearer {TOKEN}"}, json=body, timeout=90)
+            data = r.json()
+        except (requests.RequestException, ValueError):
+            time.sleep(8)
+            continue
         if r.status_code != 429:
-            break
+            return r.status_code, data, time.time() - t0
         time.sleep(20)
-    return r.status_code, r.json(), time.time() - t0
+    raise SystemExit(f"{path} kept failing")
 
 
 def verbatim(facility_id, service, text):
@@ -100,7 +105,7 @@ def eval_triage():
         code, d, secs = call("/api/triage", {"message": text})
         tr = d.get("triage", {}) if code == 200 else {}
         got_em = bool(tr.get("emergency")) or tr.get("urgency") == "emergency"
-        out = json.dumps(d, ensure_ascii=False).lower()
+        out = json.dumps({k: tr.get(k) for k in ("conditions", "followUps")}, ensure_ascii=False).lower()   # advice would show here; the model restating a request in "need" is not advice
         rows.append({"text": text, "must_emergency": must_em, "got_emergency": got_em, "expected_service": svc, "services": ",".join(tr.get("services", [])),
                      "service_ok": svc is None or svc in tr.get("services", []), "source": tr.get("source"), "seconds": round(secs, 2),
                      "forbidden_output": any(w in out for w in FORBIDDEN_IN_OUTPUT)})

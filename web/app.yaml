@@ -3,7 +3,7 @@
 command: ["npm", "run", "start:app"]
 env:
   - name: FM_ENDPOINT
-    value: databricks-meta-llama-3-3-70b-instruct
+    value: databricks-qwen35-122b-a10b
   - name: RERANK_ENDPOINT      # a smaller, faster model for scoring hospital fit (the 70B model needs over 10 s for this)
     value: databricks-meta-llama-3-1-8b-instruct
   - name: ASSIST_ENDPOINT      # writes the where-are-you question and the confirmation in the person's language
