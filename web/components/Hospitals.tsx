@@ -4,6 +4,7 @@ import { BadgeCheck, ChevronRight, Clock, FileText, Navigation, Phone, PhoneCall
 import type { NearbyHospital } from "@/lib/nearby";
 import { svcLabel, t, type Lang } from "@/lib/i18n";
 import { placeLine, RegistryBadge } from "./Slip";
+import { Name } from "./Name";
 import { Tx } from "./Tx";
 
 const MAX_TAGS = 2;
@@ -31,11 +32,11 @@ export function HospitalList({ hospitals, lang, onOpen }: { hospitals: NearbyHos
           return (
             <button key={h.id} type="button" className="hrow" onClick={() => onOpen(h)}>
               <span className="hrow-top">
-                <span className="row-title"><span lang="en">{h.name}</span>{h.registry === "verified" && <BadgeCheck size={15} aria-label={t(lang, "registryListed")} />}</span>
+                <span className="row-title"><Name text={h.name} lang={lang} />{h.registry === "verified" && <BadgeCheck size={15} aria-label={t(lang, "registryListed")} />}</span>
                 <span className="row-meta">{h.km} {t(lang, "km")}</span>
                 <ChevronRight size={16} className="chev" aria-hidden />
               </span>
-              <span className="row-sub" lang="en">{placeLine(h)}</span>
+              <span className="row-sub"><Name text={placeLine(h)} lang={lang} /></span>
               <span className="tags">
                 {tags.map((id) => <span key={id} className="tag">{svcLabel(id, lang)}</span>)}
                 {more > 0 && <span className="tag tag-more">{t(lang, "moreTags", { n: more })}</span>}
@@ -72,8 +73,8 @@ export function HospitalCard({ h, lang, need, onWhy, onSpeak }: { h: NearbyHospi
         <button type="button" className="speak tap" onClick={onSpeak} aria-label={t(lang, "readAloud")}><Volume2 size={17} aria-hidden /></button>
       </div>
 
-      <h2 className="slip-name" id={`n-${h.id}`} lang="en" data-read>{h.name}</h2>
-      <p className="slip-sub" lang="en">{placeLine(h)}</p>
+      <h2 className="slip-name" id={`n-${h.id}`} data-read><Name text={h.name} lang={lang} /></h2>
+      <p className="slip-sub"><Name text={placeLine(h)} lang={lang} /></p>
 
       <div className="stats" data-read data-read-text={`${estMinutes(h.km)} ${t(lang, "min")}, ${h.km} ${t(lang, "km")}`}>
         <div className="stat-num">{estMinutes(h.km)}<sup>{t(lang, "min")}</sup></div>

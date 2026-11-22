@@ -16,6 +16,7 @@ import { Slip, svcLabel } from "./Slip";
 import { EmergencyCard, HospitalWhySheet, LangSheet, LocSheet, PrefSheet, WhySheet, type CardAnswer, type PlaceChoice } from "./Sheets";
 import { HospitalCard, HospitalList } from "./Hospitals";
 import { Tx } from "./Tx";
+import { Name } from "./Name";
 
 interface Loc { lat: number; lon: number; label: string | null }
 interface Candidate { label: string; state: string; district: string; lat: number; lon: number }
@@ -352,7 +353,7 @@ export function App() {
         {(view !== "idle" || gate) && <button type="button" className="icon-btn tap" aria-label={t(lang, "back")} onClick={nav.back}><ChevronLeft size={22} aria-hidden /></button>}
         <button type="button" className="locbtn tap" onClick={() => setSheet("loc")} aria-label={t(lang, "locSheetTitle")}>
           <span className="locbtn-k">{t(lang, "yourLocation")}</span>
-          <span className="locbtn-v">{loc ? (loc.label ? <span lang="en">{loc.label}</span> : t(lang, "currentLocation")) : t(lang, "setLocationLabel")}<ChevronDown size={16} aria-hidden /></span>
+          <span className="locbtn-v">{loc ? (loc.label ? <Name text={loc.label} lang={lang} /> : t(lang, "currentLocation")) : t(lang, "setLocationLabel")}<ChevronDown size={16} aria-hidden /></span>
         </button>
         <span className="tb-group">
           {ra.available && <button type="button" className="icon-btn tap" aria-label={t(lang, "listen")} aria-pressed={ra.state.status !== "idle"} data-on={ra.state.status !== "idle"} onClick={readPage}><Volume2 size={19} aria-hidden /></button>}
@@ -484,7 +485,7 @@ export function App() {
                   <div className="list">
                     {rec.results.map((r, i) => i === sel ? null : (
                       <button key={r.id} type="button" className="list-row" onClick={() => { setSel(i); window.scrollTo({ top: 0, behavior: "smooth" }); }}>
-                        <span className="row-title"><span lang="en">{r.name}</span>{r.registry?.tier === "verified" && <BadgeCheck size={15} aria-label={t(lang, "registryListed")} />}</span>
+                        <span className="row-title"><Name text={r.name} lang={lang} />{r.registry?.tier === "verified" && <BadgeCheck size={15} aria-label={t(lang, "registryListed")} />}</span>
                         <span className="row-meta">{r.etaMinutes} {t(lang, "min")}</span>
                         <ChevronRight size={16} className="chev" aria-hidden />
                         <span className="row-sub">{r.distanceKm} {t(lang, "km")}{!r.solid ? ` · ${t(lang, "sureLow")}` : ""}</span>

@@ -1,4 +1,5 @@
 "use client";
+import { Name } from "./Name";
 import { useEffect, useRef, useState } from "react";
 import { AlertTriangle, BadgeCheck, ChevronRight, Clock, FileText, Navigation, Phone, PhoneCall, ShieldQuestion, Volume2 } from "lucide-react";
 import type { ResultDto } from "@/lib/recommend";
@@ -82,8 +83,8 @@ export function Slip({ r, lang, services, onWhy, onSpeak }: {
         <button type="button" className="speak tap" onClick={onSpeak} aria-label={t(lang, "readAloud")}><Volume2 size={17} aria-hidden /></button>
       </div>
 
-      <h2 className="slip-name" id={`n-${r.id}`} lang="en" data-read>{r.name}</h2>
-      {where && <p className="slip-sub" lang="en">{where}</p>}
+      <h2 className="slip-name" id={`n-${r.id}`} data-read><Name text={r.name} lang={lang} /></h2>
+      {where && <p className="slip-sub"><Name text={where} lang={lang} /></p>}
 
       <div className="stats" data-read data-read-text={`${r.etaMinutes} ${t(lang, "min")}, ${r.distanceKm} ${t(lang, "km")}`}>
         <div className="stat-num">{r.etaMinutes}<sup>{t(lang, "min")}</sup></div>

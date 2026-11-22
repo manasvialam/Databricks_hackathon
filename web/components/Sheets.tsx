@@ -6,6 +6,7 @@ import type { RedFlagResult } from "@/lib/triage/redflags";
 import type { Contribution, Preferences } from "@/lib/types";
 import { chooseVoice, chosenVoice, speak, voiceChoices } from "@/lib/client/speech";
 import { isNatural } from "@/lib/client/voices";
+import { Name } from "./Name";
 import { emergencyText, LANGS, say, svcLabel, t, termText, type Lang, type Msg } from "@/lib/i18n";
 import type { NearbyHospital } from "@/lib/nearby";
 import { placeLine } from "./Slip";
@@ -275,7 +276,7 @@ export function LocSheet({ lang, busy, msg, candidates, recent, hint, confirm, o
       <Sheet title={t(lang, "locSheetTitle")} onClose={onClose} lang={lang} onListen={onListen}>
         <div className="confirm">
           <p className="ask" data-read>{confirm.text}</p>
-          <p className="place-chip" data-read lang="en"><MapPin size={18} aria-hidden />{confirm.place}</p>
+          <p className="place-chip" data-read><MapPin size={18} aria-hidden /><Name text={confirm.place} lang={lang} /></p>
           <div className="btn-row">
             <button type="button" className="btn btn-primary tap" onClick={onYes}>{t(lang, "confirmYes")}</button>
             <button type="button" className="btn tap" onClick={onNo}>{t(lang, "confirmNo")}</button>
@@ -302,7 +303,7 @@ export function LocSheet({ lang, busy, msg, candidates, recent, hint, confirm, o
           {candidates.map((c) => (
             <button key={`${c.label}${c.state}${c.lat}`} type="button" className="loc-row tap" onClick={() => onPick(c)}>
               <span className="loc-ico"><MapPin size={18} aria-hidden /></span>
-              <span><span lang="en">{c.label}</span>{c.district && <small lang="en">{c.district}, {c.state}</small>}</span>
+              <span><Name text={c.label} lang={lang} />{c.district && <small><Name text={`${c.district}, ${c.state}`} lang={lang} /></small>}</span>
             </button>
           ))}
         </div>
@@ -313,7 +314,7 @@ export function LocSheet({ lang, busy, msg, candidates, recent, hint, confirm, o
           {PRESET_PLACES.map((c) => (
             <button key={c.query} type="button" className="loc-row tap" onClick={() => onLookup(c.query)} disabled={busy}>
               <span className="loc-ico"><MapPin size={18} aria-hidden /></span>
-              <span><span lang="en">{c.label}</span><small lang="en">{c.sub}</small></span>
+              <span><Name text={c.label} lang={lang} /><small><Name text={c.sub} lang={lang} /></small></span>
             </button>
           ))}
         </div>
@@ -324,7 +325,7 @@ export function LocSheet({ lang, busy, msg, candidates, recent, hint, confirm, o
           {recent.map((c) => (
             <button key={`${c.label}${c.lat}`} type="button" className="loc-row tap" onClick={() => onPick(c)}>
               <span className="loc-ico"><Clock size={18} aria-hidden /></span>
-              <span lang="en">{c.label}</span>
+              <Name text={c.label} lang={lang} />
             </button>
           ))}
         </div>
