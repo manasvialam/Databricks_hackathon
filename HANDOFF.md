@@ -118,5 +118,5 @@ The emergency gate is independent of all three and can only escalate. Tests (`te
 3. **Extend `databricks/evaluate.py`:** add queries where keyword rules and the model disagree (headache, "breathless on stairs", Hindi/Tamil/Telugu/Malayalam paraphrases), and record `rankedBy` plus the rank change from fit scoring so we can show whether the model helps. The rerank prompt in `lib/rerank.ts` and the weight `W.modelFit` are hand-set and uncalibrated.
 4. **Better than prompting (optional):** embeddings for symptom to service matching (listed under "Not done" in section 10); `ai_query` could do the fit scoring in SQL for the Genie and dashboard side.
 5. **Translation review:** have native speakers compare model translations against the reviewed packs; add good ones to `lib/i18n/<lang>.ts` so they stop costing calls.
-6. **Open data points:** the 11 PM-JAY badge matches shown to users still need the hand-labelled precision check (section 8, item 3) before the green badge ships.
+6. **Open data points:** the PM-JAY badge matches shown to users still need the hand-labelled precision check (section 8, item 3) before the green badge ships.
 
