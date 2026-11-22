@@ -757,3 +757,8 @@ h1, h2, h3, p, blockquote { margin: 0; }
 .ride-row { margin-top: 10px; }
 .ride-row .btn { padding: 0 12px; min-height: 48px; }
 .ride-note { margin-top: 8px; text-align: center; }
+
+/* ride buttons carry their service's colours (names only, no logos) */
+.btn-ola { background: #d7e84a; color: #14210a; }
+.btn-uber { background: #000; color: #fff; }
+.btn-ola:hover, .btn-uber:hover { filter: brightness(1.08); }

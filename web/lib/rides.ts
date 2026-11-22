@@ -10,11 +10,12 @@
  *   The docs call `utm_source` (an affiliate XAPP token issued by Ola) required for attribution. We have no token and never invent one;
  *   set NEXT_PUBLIC_OLA_XAPP to add it. Without it the links are NOT confirmed to pre-fill the drop. UNVERIFIED on a device.
  *
- * RAPIDO - no public deep-link specification was found. UNVERIFIED: we only open https://www.rapido.bike/ (an app link on phones that
- *   have the app, otherwise the website) and the screen copies the hospital name so the person can paste it as the drop. No drop
- *   parameters are sent because none are documented.
+ * UBER - documented at developer.uber.com (ride request deep links, universal link form):
+ *   https://m.uber.com/ul/?action=setPickup&pickup[latitude]&pickup[longitude]&dropoff[latitude]&dropoff[longitude]&dropoff[nickname]&dropoff[formatted_address]
+ *   opens the Uber app if installed, else the Uber web page. pickup=my_location when our origin is unknown. client_id is optional and not sent.
+ *   Uber runs in some Indian cities only. UNVERIFIED on a device from here.
  *
- * Not used: `geo:` URIs and navigator.share. Both list map apps, and neither reliably lists Ola or Rapido, so they would not give the
+ * Not used: `geo:` URIs and navigator.share. Both list map apps, and neither reliably lists Ola or Uber, so they would not give the
  * one-tap result asked for.
  */
 export interface Point { lat: number; lon: number }
@@ -22,7 +23,7 @@ export interface RideDest extends Point { name: string }
 
 const OLA_UNIVERSAL = "https://olawebcdn.com/assets/ola-universal-link.html";
 const OLA_WEB = "https://book.olacabs.com/";
-export const RAPIDO_URL = "https://www.rapido.bike/";
+const UBER = "https://m.uber.com/ul/";
 
 /** Five decimals is about a metre; keeps links short and avoids float noise. */
 export const coord = (n: number) => String(Math.round(n * 1e5) / 1e5);
@@ -43,9 +44,11 @@ export function olaLink(origin: Point | null | undefined, dest: RideDest, opts: 
   return `${OLA_WEB}?${query([...common, ["dsw", "yes"], ["drop_name", name], ["utm_source", opts.xapp]])}`;
 }
 
-export function rapidoLink(): string { return RAPIDO_URL; }
-
-/** Text copied for Rapido: the name of the place, nothing else. */
-export const rapidoDropText = (dest: RideDest) => dest.name.trim();
+export function uberLink(origin: Point | null | undefined, dest: RideDest): string {
+  const o = valid(origin) ? origin : null;
+  const name = dest.name.trim().slice(0, 120);
+  const pickup: [string, string | undefined][] = o ? [["pickup[latitude]", coord(o.lat)], ["pickup[longitude]", coord(o.lon)]] : [["pickup", "my_location"]];
+  return `${UBER}?${query([["action", "setPickup"], ...pickup, ["dropoff[latitude]", coord(dest.lat)], ["dropoff[longitude]", coord(dest.lon)], ["dropoff[nickname]", name], ["dropoff[formatted_address]", name]])}`;
+}
 
 export const isMobileUA = (ua: string) => /Android|iPhone|iPad|iPod/i.test(ua);

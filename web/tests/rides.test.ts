@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { coord, isMobileUA, olaLink, rapidoDropText, rapidoLink } from "@/lib/rides";
+import { coord, isMobileUA, olaLink, uberLink } from "@/lib/rides";
 
 const o = { lat: 12.9716, lon: 77.5946 };
 const d = { lat: 10.78701234, lon: 79.13849, name: "St. Mary's Hospital & Clinic, Thanjavur" };
@@ -42,9 +42,17 @@ describe("ride links", () => {
     expect(olaLink(o, d, { mobile: true })).not.toContain("utm_source");
     expect(new URL(olaLink(o, d, { mobile: true, xapp: "tok 1" })).searchParams.get("utm_source")).toBe("tok 1");
   });
-  it("Rapido has no parameters and the copied text is just the name", () => {
-    expect(rapidoLink()).toBe("https://www.rapido.bike/");
-    expect(rapidoDropText({ ...d, name: "  Apollo  " })).toBe("Apollo");
+  it("Uber: universal link with pickup and drop coordinates and the drop name", () => {
+    const u = new URL(uberLink(o, d));
+    expect(u.origin + u.pathname).toBe("https://m.uber.com/ul/");
+    expect(u.searchParams.get("action")).toBe("setPickup");
+    expect(u.searchParams.get("pickup[latitude]")).toBe(coord(o.lat));
+    expect(u.searchParams.get("dropoff[latitude]")).toBe("10.78701");
+    expect(u.searchParams.get("dropoff[nickname]")).toBe(d.name);
+    expect(u.searchParams.has("client_id")).toBe(false);
+  });
+  it("Uber: uses my_location when the origin is unknown", () => {
+    expect(new URL(uberLink(null, d)).searchParams.get("pickup")).toBe("my_location");
   });
   it("detects phones", () => {
     expect(isMobileUA("Mozilla/5.0 (Linux; Android 14; Pixel 8)")).toBe(true);

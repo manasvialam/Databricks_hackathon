@@ -508,7 +508,7 @@ export function App() {
                 <p className="matched-for" data-read>{t(lang, "bestFor2", { what: needQuery!.sp.map((id) => specLabel(id, lang)).join(" · ") })}</p>
               )}
               {careNote && hMode === "need" && <p className="muted" style={{ padding: "0 6px" }}>{careNote}</p>}
-              <HospitalCard h={shownHospitals[sel]} lang={lang} origin={loc} need={hMode === "need" ? door.current : null} guidance={hMode === "need"} onWhy={() => setSheet("hwhy")}
+              <HospitalCard h={shownHospitals[sel]} lang={lang} origin={loc} need={hMode === "need" ? door.current : null} guidance={hMode === "need"} onWhy={() => setSheet("hwhy")} onDoor={() => setSheet("door")}
                 onDirections={() => openMap({ name: shownHospitals[sel].name, lat: shownHospitals[sel].lat, lon: shownHospitals[sel].lon, fallbackKm: shownHospitals[sel].km })} />
               <div style={{ padding: "6px 6px 0" }}><h2 className="section-label" style={{ padding: 0 }}>{t(lang, "hospitalsNear")}</h2></div>
               <HospitalList hospitals={shownHospitals.filter((_, i) => i !== sel)} lang={lang} onOpen={openHospital} />
@@ -664,7 +664,7 @@ export function App() {
       {sheet === "map" && mapTarget && loc && <MapSheet origin={loc} dest={mapTarget} lang={lang} onClose={() => setSheet(null)} onListen={readSheet} />}
       {sheet === "lang" && <LangSheet lang={lang} onClose={() => setSheet(null)} onListen={readSheet} onPick={(l) => { chooseLang(l); setSheet(null); }} />}
       {sheet === "why" && picked && rec && <WhySheet r={picked} lang={lang} onClose={() => setSheet(null)} trafficNote={rec.traffic.note} context={rec.coverage.context} onListen={readSheet} />}
-      {sheet === "door" && picked && rec && <DoorSheet r={picked} lang={lang} serviceId={rec.services[0]?.id ?? ""} need={door.current} onClose={() => setSheet(null)} onListen={readSheet} />}
+      {sheet === "door" && ((picked && rec) || (view === "pickcare" && shownHospitals[sel])) && <DoorSheet name={picked && rec ? picked.name : shownHospitals[sel].name} lang={lang} serviceId={picked && rec ? rec.services[0]?.id ?? "" : ""} need={door.current} onClose={() => setSheet(null)} onListen={readSheet} />}
       {sheet === "prefs" && (
         <PrefSheet lang={lang} prefs={prefs} card={card} onClose={() => setSheet(null)} onListen={readSheet}
           onApply={(p, c) => { setPrefs(p); setCard(c); setPrefsTouched(true); setSheet(null); if (last.current && loc) void fetchRec(last.current.services, last.current.urgency, loc, p, c, true); }} />

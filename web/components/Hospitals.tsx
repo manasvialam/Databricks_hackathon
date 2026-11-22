@@ -1,6 +1,6 @@
 "use client";
 import { useMemo, useState } from "react";
-import { BadgeCheck, ChevronRight, Clock, Navigation, Phone } from "lucide-react";
+import { BadgeCheck, ChevronRight, Clock, Hand, Navigation, Phone } from "lucide-react";
 import type { NearbyHospital } from "@/lib/nearby";
 import { t, type Lang } from "@/lib/i18n";
 import { specLabel } from "@/lib/specialty";
@@ -62,8 +62,7 @@ export const estMinutes = (km: number) => Math.max(3, Math.round((km * 1.4) / 0.
  * recommendation card minus the per-service confidence, which does not exist here. When the person described a problem (`guidance`),
  * "Why this hospital" and "Show at the door" (what to say, what to bring) are offered; a plain browse shows facts only.
  */
-export function HospitalCard({ h, lang, need, guidance, origin, onWhy, onDirections }: { h: NearbyHospital; lang: Lang; need: string | null; guidance: boolean; origin: { lat: number; lon: number } | null; onWhy: () => void; onDirections: () => void }) {
-  const [door, setDoor] = useState(false);
+export function HospitalCard({ h, lang, need, guidance, origin, onWhy, onDoor, onDirections }: { h: NearbyHospital; lang: Lang; need: string | null; guidance: boolean; origin: { lat: number; lon: number } | null; onWhy: () => void; onDoor: () => void; onDirections: () => void }) {
   const route = useRoute(origin, h);
   // what to say at the desk: the model's short summary of the problem, without "I'm having" or a closing full stop, so the sentence reads on its own
   const shortNeed = cleanNeed(need);
@@ -118,18 +117,18 @@ export function HospitalCard({ h, lang, need, guidance, origin, onWhy, onDirecti
       <RideButtons origin={origin} dest={{ lat: h.lat, lon: h.lon, name: h.name }} lang={lang} />
       {!h.phone && <p className="tiny" style={{ marginTop: 8, textAlign: "center" }}>{t(lang, "noPhone")}</p>}
 
-      {guidance && <div className="more">
-        <button type="button" className="more-row" onClick={onWhy}>{t(lang, "whyThis")}<ChevronRight size={18} aria-hidden /></button>
-        <button type="button" className="more-row" aria-expanded={door} aria-controls={`door-${h.id}`} onClick={() => setDoor((p) => !p)}>
-          {t(lang, "showAtDoor")}<ChevronRight size={18} aria-hidden />
-        </button>
-        <div className="more-body" id={`door-${h.id}`} data-open={door}>
-          <div>
-            {shortNeed && <div className="doorrow"><b>{t(lang, "say")}</b><span>{t(lang, "sayNeedLine", { need: shortNeed })}</span></div>}
-            <div className="doorrow"><b>{t(lang, "carry")}</b><span>{t(lang, "carryItems").split("|").join(" · ")}</span></div>
+      {guidance && (
+        <>
+          <button type="button" className="door-card tap" onClick={onDoor}>
+            <span className="door-ico"><Hand size={22} strokeWidth={2} aria-hidden /></span>
+            <span className="door-t">{t(lang, "showAtDoor")}<small>{shortNeed ? t(lang, "sayNeedLine", { need: shortNeed }) : t(lang, "sayLine", { service: "a doctor" })}</small></span>
+            <ChevronRight size={20} aria-hidden />
+          </button>
+          <div className="more">
+            <button type="button" className="more-row" onClick={onWhy}>{t(lang, "whyThis")}<ChevronRight size={18} aria-hidden /></button>
           </div>
-        </div>
-      </div>}
+        </>
+      )}
     </article>
   );
 }
