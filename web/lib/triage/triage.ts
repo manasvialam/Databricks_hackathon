@@ -25,6 +25,7 @@ export interface TriageResult {
   placeCandidates: string[];
   understood: boolean;              // false when no service could be identified
   lowConfidence: boolean;
+  need: string | null;              // the model's plain-English restatement of the need, used to judge hospital fit
   source: "rules" | "llm+rules";
   note: string | null;
 }
@@ -61,8 +62,9 @@ export async function triage(text: string, opts: { history?: string[]; llm?: Llm
   const services: ServiceId[] = [];
   const push = (s: ServiceId) => { if (!services.includes(s)) services.push(s); };
   if (emergency) emergency.services.forEach(push);
-  rules?.services.forEach(push);
-  llm?.services.forEach((s) => isServiceId(s) && push(s));
+  // when the model answered, its reading of the message decides the care needed; keyword rules are only the fallback.
+  // (The emergency gate above is independent of both and can only escalate.)
+  if (llm) llm.services.forEach((s) => isServiceId(s) && push(s)); else rules?.services.forEach(push);
 
   const conditions = llm?.possibleConditions.length ? llm.possibleConditions : rules?.conditions ?? [];
   const followUps = (llm?.followUps ?? []).slice(0, 2);
@@ -72,6 +74,7 @@ export async function triage(text: string, opts: { history?: string[]; llm?: Llm
   return {
     emergency, urgency, services: services.slice(0, 4), conditions, followUps,
     placeCandidates: [...new Set(places)], understood: services.length > 0, lowConfidence: !!rules && rules.confidence === "low" && !llm,
+    need: llm?.summary ?? null,
     source: llm ? "llm+rules" : "rules",
     note: llm ? null : "Understood with built-in rules; the language model was not used for this message.",
   };

@@ -1,3 +1,4 @@
+import { rerankFit } from "./rerank";
 import "server-only";
 import type { Claim, Contribution, DistrictInfo, Facility, Preferences, RankedFacility, ServiceId, Urgency } from "./types";
 import { SERVICE_BY_ID } from "./services";
@@ -18,6 +19,7 @@ export interface RecommendRequest {
   persona?: PersonaId;
   preferences?: Partial<Preferences>;
   card?: CardStatus;
+  need?: string | null;          // what the person described, in their own words or the model's summary of it
   maxResults?: number;
 }
 
@@ -40,7 +42,7 @@ export interface RecommendResponse {
   results: ResultDto[]; picks: Record<"best" | "fastest" | "mostTrusted" | "bestValue" | "mostComfortable", string | null>;
   traffic: { live: boolean; provider: string | null; note: Msg };
   coverage: { message: string | null; context: Msg[]; district: string | null; state: string | null };
-  label: string; asOf: string | null;
+  label: string; asOf: string | null; rankedBy: "evidence" | "evidence+model";
 }
 
 const RADII = [25, 50, 100, 200];
@@ -93,7 +95,7 @@ function districtContext(services: ServiceId[], d: DistrictInfo | undefined): Ms
   return out.slice(0, 3);
 }
 
-export async function recommend(req: RecommendRequest, deps: { traffic?: typeof getEtas } = {}): Promise<RecommendResponse> {
+export async function recommend(req: RecommendRequest, deps: { traffic?: typeof getEtas; fit?: typeof rerankFit } = {}): Promise<RecommendResponse> {
   const snap = snapshot();
   const primary = req.services[0];
   const persona = PERSONA_BY_ID[req.persona ?? "everyone"] ?? PERSONA_BY_ID.everyone;
@@ -117,7 +119,8 @@ export async function recommend(req: RecommendRequest, deps: { traffic?: typeof 
   const origin = { lat: req.lat, lon: req.lon };
   const eta: EtaResult = await (deps.traffic ?? getEtas)(origin, short.map((x) => ({ id: x.f.id, lat: x.f.la, lon: x.f.lo, straightKm: x.km })));
   const km = Object.fromEntries(short.map((x) => [x.f.id, x.km]));
-  const result = rank({ candidates: short.map((x) => x.f), services: req.services.map((id, i) => ({ id, weight: i === 0 ? 2 : 1 })), urgency: req.urgency, preferences: prefs, card, eta: eta.etas, distanceKm: km });
+  const fits = req.need ? await (deps.fit ?? rerankFit)(req.need, short.map((x) => x.f)) : null;
+  const result = rank({ fit: fits ?? undefined, candidates: short.map((x) => x.f), services: req.services.map((id, i) => ({ id, weight: i === 0 ? 2 : 1 })), urgency: req.urgency, preferences: prefs, card, eta: eta.etas, distanceKm: km });
 
   const max = req.maxResults ?? 5;
   const viableRanked = result.ranked.filter((x) => x.primaryPService >= W.minViable);
@@ -151,12 +154,13 @@ export async function recommend(req: RecommendRequest, deps: { traffic?: typeof 
   if (widenedFrom) notes.push(msg("noteWidened", { from: widenedFrom, to: radius }));
   if (results.some((x) => !x.solid) && results.some((x) => x.solid)) notes.push(msg("noteWeakListed"));
   if (results.length && results.every((x) => x.warnings.length)) notes.push(msg("noteAllCaution"));
+  if (fits) notes.push(msg("noteModelUsed"));
 
   return {
     urgency: req.urgency, services: req.services.map((id) => ({ id, label: SERVICE_BY_ID[id].en })),
     location: { lat: req.lat, lon: req.lon, label: req.locationLabel ?? null },
     confidence: result.confidence, notes, radiusKm: radius, widenedFrom, candidatesConsidered: considered,
-    results, picks: {
+    rankedBy: fits ? "evidence+model" : "evidence", results, picks: {
       best: result.picks.best?.facility.id ?? null, fastest: result.picks.fastest?.facility.id ?? null, mostTrusted: result.picks.mostTrusted?.facility.id ?? null,
       bestValue: result.picks.bestValue?.facility.id ?? null, mostComfortable: result.picks.mostComfortable?.facility.id ?? null,
     },

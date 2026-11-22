@@ -65,6 +65,15 @@ describe("other routes", () => {
     expect(j.services.some((s: { count: number }) => s.count > 0)).toBe(true);
     expect((await nearbyGet(new Request("http://t/api/nearby?lat=1&lon=1"))).status).toBe(400);
   });
+  it("nearby also lists hospitals directly, nearest first, with service tags", async () => {
+    const j = await (await nearbyGet(new Request("http://t/api/nearby?lat=25.6&lon=85.14"))).json();
+    const h = j.hospitals as { name: string; km: number; services: string[]; type: string | null }[];
+    expect(h.length).toBeGreaterThan(3);
+    expect(h.length).toBeLessThanOrEqual(12);
+    expect(h.every((x) => x.type === "hospital" || x.type === "nursing_home" || x.type === null)).toBe(true);
+    expect(h.some((x) => x.services.length > 0)).toBe(true);
+    expect(h[0].km).toBeLessThanOrEqual(h[h.length - 1].km + 12);
+  });
   it("geocode and health respond without leaking configuration", async () => {
     const g = await (await geocodeGet(new Request("http://t/api/geocode?q=Bangalore"))).json();
     expect(g.state).toBe("KARNATAKA");

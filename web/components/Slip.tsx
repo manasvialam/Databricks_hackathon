@@ -2,7 +2,8 @@
 import { useEffect, useRef, useState } from "react";
 import { AlertTriangle, BadgeCheck, ChevronRight, Clock, FileText, Navigation, Phone, PhoneCall, ShieldQuestion, Volume2 } from "lucide-react";
 import type { ResultDto } from "@/lib/recommend";
-import { say, svcLabel, t, type Lang } from "@/lib/i18n";
+import { svcLabel, t, type Lang } from "@/lib/i18n";
+import { Tx } from "./Tx";
 
 export { svcLabel };
 
@@ -95,7 +96,7 @@ export function Slip({ r, lang, services, onWhy, onSpeak }: {
         <span>{t(lang, "howSure")}: <b>{t(lang, SURE_KEY[level])}</b></span>
       </div>
       {!r.solid && <p className="callout"><AlertTriangle size={17} aria-hidden /><span>{t(lang, "weakNote")}</span></p>}
-      {r.solid && warning && <p className="callout"><AlertTriangle size={17} aria-hidden /><span>{say(warning, lang)}</span></p>}
+      {r.solid && warning && <p className="callout"><AlertTriangle size={17} aria-hidden /><span><Tx m={warning} lang={lang} /></span></p>}
 
       <div className="btn-row actions">
         {phone

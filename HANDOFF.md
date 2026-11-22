@@ -49,11 +49,13 @@ Large files use Git LFS (`*.csv`, `*.parquet`). Run `git lfs pull` after cloning
 
 ## 6. Design
 
-Direction "the referral slip": one answer you can show at the door. World: Indian highway wayfinding boards: board green `#0B5D3B` ground, white sign panels, caution yellow for doubt, facility blue for registry marks, emergency red only for emergencies. Glass only on floating chrome (top strip, composer, mic). Signature: the road bar (free-flow minutes solid, traffic delay hatched yellow, likely range bracketed). Full rules in `DESIGN.md`; direction contract in `.impeccable/surfaces/web-app-page-tsx.md`. The design detector reports zero findings. The finish review was source-only.
+**Superseded (see section 12):** the green highway-board look below was replaced by a calm cool-tone UI. `DESIGN.md` and `.impeccable/` still describe the old one and need rewriting.
+
+Old direction, "the referral slip": one answer you can show at the door. World: Indian highway wayfinding boards: board green `#0B5D3B` ground, white sign panels, caution yellow for doubt, facility blue for registry marks, emergency red only for emergencies. Glass only on floating chrome (top strip, composer, mic). Signature: the road bar (free-flow minutes solid, traffic delay hatched yellow, likely range bracketed). Full rules in `DESIGN.md`; direction contract in `.impeccable/surfaces/web-app-page-tsx.md`. The design detector reports zero findings. The finish review was source-only.
 
 ## 7. Status
 
-Done and tested: ranking engine, triage and emergency gate (English, Hindi, Hinglish; draft Tamil/Telugu/Malayalam), geocoder, traffic fallback, registry matching, snapshot export, API, full UI in five languages (screen text, service keywords, native-script place names, read-aloud voice choice), 221 passing tests, production build, design docs.
+Done and tested: ranking engine, triage and emergency gate (English, Hindi, Hinglish; draft Tamil/Telugu/Malayalam), geocoder, traffic fallback, registry matching, snapshot export, API, full UI in five languages (screen text, service keywords, native-script place names, read-aloud voice choice), 230 passing tests, production build, design docs.
 
 ## 8. What is not done (your to-do list)
 
@@ -94,6 +96,30 @@ Workspace `https://dbc-43fc181d-51b6.cloud.databricks.com` (workspace id 7474656
 
 The deployed app loads its facilities, districts and metadata from the Delta table `workspace.facility_finder.app_snapshot` through the SQL warehouse (`web/lib/snapshot.ts`, started by `web/instrumentation.ts`), and reloads every hour. The bundled `web/data/*.json` answers instantly while the warehouse wakes and is the fallback if the warehouse fails; `/api/health` shows `data.source` ("warehouse" or "snapshot") and any `warehouseError`. To update the data: `python scripts/export_snapshot.py` then `python databricks/load_app_data.py` (the app picks it up within an hour, or on restart). The app's service principal has CAN_USE on the warehouse (app resource `warehouse`) and SELECT on `app_snapshot`.
 
-## 13. Where things live in the workspace
+## 13. UI redesign, hospital list and language-model features (2026-11-22)
+
+### UI
+Calm, cool-tone, phone-first (Apple-like): blue-grey ground, white cards, slate ink, one muted slate-blue for actions, soft green only for the PM-JAY badge, amber only for doubt, red only for emergencies, no gradients or glow. Tokens and every component style are in `web/app/globals.css`. Home is a large "What's wrong?" box (mic and Find button inside it) plus a separate "Where are you?" card; the bottom search bar only appears on result screens. The result card shows badge, name, place, minutes and km, one confidence line, Call and Directions; "Why this hospital" (evidence quote, source, reasons, fine print) and "Before you go" fold out. The green PM-JAY badge opens a small card saying what was cross-checked. Glisse is no longer used (it can be removed from `package.json`).
+
+### Hospital list
+`lib/nearby.ts` `nearbyHospitals()`, returned as `hospitals` by `/api/nearby`; UI in `components/Hospitals.tsx` and `HospitalSheet` in `Sheets.tsx`. Hospitals and nursing homes only, nearest first (radius widens 10, 25, 50, 100 km until 12 are found), each tagged with the services that have solid evidence (same rule as the old service tiles). Hospitals with no confirmed service sort after. Shown after a place is set, and when a typed problem maps to no service.
+
+### Language model (needs the Databricks person)
+One chat endpoint (`FM_ENDPOINT`, `app.yaml` uses `databricks-meta-llama-3-3-70b-instruct`) does three jobs; with no endpoint the app falls back to rules and evidence-only ranking. Details in `web/README.md`.
+1. **Understanding** (`lib/databricks.ts`, `lib/triage/triage.ts`): when the model answers, its services decide the care needed; keyword rules are only the fallback. `services: []` is valid ("headache") and leads to the hospital list. The model's plain-English summary is returned as `need`.
+2. **Fit scoring** (`lib/rerank.ts`, `lib/recommend.ts`, `lib/ranking.ts`): `need` goes to `/api/recommend`; the model scores each shortlisted hospital 0 to 1 from its own records. One capped term in P(service): at most 0.6 log-odds (`W.modelFit`), positive only where evidence is already Strong, Moderate or Inferred. It cannot add hospitals or rescue Weak or Contradicted evidence. Response has `rankedBy: "evidence" | "evidence+model"`; the reason shows in "Why this hospital".
+3. **Translation fallback** (`lib/translate.ts`, `/api/translate`, `lib/client/mt.ts`, `components/Tx.tsx`): server messages with no reviewed translation are translated by the model. A translation that changes any digit is discarded; cached; daily budget `TRANSLATE_DAILY_LIMIT` (default 300). Reviewed packs in `lib/i18n` always win.
+
+The emergency gate is independent of all three and can only escalate. Tests (`tests/llm.test.ts`) use stubs only.
+
+### To do on the Databricks side
+1. **Never tested against the real endpoint.** Redeploy the app (section 10), confirm `FM_ENDPOINT` exists and the app service principal has CAN_QUERY, then try "headache hospitals", a Hindi and a Tamil description of dialysis, and a chest-pain message. Watch `databricks apps logs facility-finder` for `llm extract failed`, `rerank failed`, `translate failed`.
+2. **Latency and cost:** fit scoring adds one model call per recommend (timeout 7 s, falls back silently); translation adds calls per non-English screen. Check both against the Free Edition rate limits and the app's 40 requests per minute per IP.
+3. **Extend `databricks/evaluate.py`:** add queries where keyword rules and the model disagree (headache, "breathless on stairs", Hindi/Tamil/Telugu/Malayalam paraphrases), and record `rankedBy` plus the rank change from fit scoring so we can show whether the model helps. The rerank prompt in `lib/rerank.ts` and the weight `W.modelFit` are hand-set and uncalibrated.
+4. **Better than prompting (optional):** embeddings for symptom to service matching (listed under "Not done" in section 10); `ai_query` could do the fit scoring in SQL for the Genie and dashboard side.
+5. **Translation review:** have native speakers compare model translations against the reviewed packs; add good ones to `lib/i18n/<lang>.ts` so they stop costing calls.
+6. **Open data points:** the PM-JAY badge matches shown to users still need the hand-labelled precision check (section 8, item 3) before the green badge ships.
+
+## 14. Where things live in the workspace
 
 Everything is in the shared folder `/Workspace/Hackathon`: app source `facility-finder-app` (the app deploys from here), `facility-finder-sql` (refresh job SQL), notebook `facility_graph`, the dashboard "Facility finder: data, evidence and relationships", the Genie space "Facility finder: ask the data", and the MLflow experiment `facility-finder-eval`. Tables are in the `workspace.facility_finder` schema. Nothing depends on a personal folder.

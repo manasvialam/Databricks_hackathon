@@ -1,15 +1,18 @@
 "use client";
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Check, ExternalLink, Minus, Phone, Plus, Volume2, X } from "lucide-react";
+import { BadgeCheck, Check, ExternalLink, Minus, Navigation, Phone, Plus, ShieldQuestion, Volume2, X } from "lucide-react";
 import type { ResultDto } from "@/lib/recommend";
 import type { RedFlagResult } from "@/lib/triage/redflags";
 import type { Contribution, Preferences } from "@/lib/types";
-import { emergencyText, LANGS, say, t, termText, type Lang, type Msg } from "@/lib/i18n";
+import { emergencyText, LANGS, say, svcLabel, t, termText, type Lang, type Msg } from "@/lib/i18n";
+import type { NearbyHospital } from "@/lib/nearby";
+import { placeLine } from "./Slip";
+import { Tx, TxText } from "./Tx";
 
 export type CardAnswer = "yes" | "no" | "unknown";
 
 /** iOS-style bottom sheet: springs up, closes with a slide, and can be dragged down by its grabber. */
-function Sheet({ title, onClose, lang, onListen, children }: { title: string; onClose: () => void; lang: Lang; onListen?: () => void; children: React.ReactNode }) {
+export function Sheet({ title, onClose, lang, onListen, children }: { title: string; onClose: () => void; lang: Lang; onListen?: () => void; children: React.ReactNode }) {
   const ref = useRef<HTMLDivElement>(null);
   const [closing, setClosing] = useState(false);
   const drag = useRef<{ y: number; dy: number; t: number } | null>(null);
@@ -73,7 +76,9 @@ function Sheet({ title, onClose, lang, onListen, children }: { title: string; on
 
 function Term({ c, lang }: { c: Contribution; lang: Lang }) {
   const { label, detail } = termText(c, lang);
-  return <span>{label}{detail ? `. ${detail}` : ""}</span>;
+  // free text with no message key (the model's one-line reason, a data contradiction) is English: translate it
+  const free = lang !== "en" && !c.dk && c.detail ? c.detail : null;
+  return <span>{label}{free ? <>. <TxText text={free} lang={lang} /></> : detail ? `. ${detail}` : ""}</span>;
 }
 
 const host = (u: string) => { try { return new URL(u).hostname.replace(/^www\./, ""); } catch { return u; } };
@@ -112,9 +117,9 @@ export function WhySheet({ r, lang, onClose, trafficNote, context = [], onListen
         </div>
       )}
       <div className="block card-flat" style={{ display: "grid", gap: 8 }}>
-        {r.warnings.slice(1).map((w) => <p key={w.text} className="small">{say(w, lang)}</p>)}
-        {context.map((c) => <p key={c.text} className="small">{say(c, lang)}</p>)}
-        <p className="small">{say(trafficNote, lang)}</p>
+        {r.warnings.slice(1).map((w) => <p key={w.text} className="small"><Tx m={w} lang={lang} /></p>)}
+        {context.map((c) => <p key={c.text} className="small"><Tx m={c} lang={lang} /></p>)}
+        <p className="small"><Tx m={trafficNote} lang={lang} /></p>
         {r.registry && <p className="small">{t(lang, "registryNote")}</p>}
         <p className="small">{t(lang, "estimate")}</p>
         <p className="small">{t(lang, "notAffiliated")}</p>
@@ -203,5 +208,33 @@ export function EmergencyCard({ gate, lang, online }: { gate: RedFlagResult; lan
       })}
       {!online && <p style={{ fontSize: 14 }}>{t(lang, "emergencyOffline")}</p>}
     </section>
+  );
+}
+
+export function HospitalSheet({ h, lang, onClose, onListen }: { h: NearbyHospital; lang: Lang; onClose: () => void; onListen?: () => void }) {
+  const dir = `https://www.google.com/maps/dir/?api=1&destination=${h.lat},${h.lon}`;
+  return (
+    <Sheet title={h.name} onClose={onClose} lang={lang} onListen={onListen}>
+      <p className="muted" lang="en">{placeLine(h)}</p>
+      <p className="small" style={{ marginTop: 4 }}>{t(lang, "kmAway", { km: h.km })}</p>
+      <div className="tags" style={{ marginTop: 12 }}>
+        {h.registry && <span className="badge" data-tier={h.registry}>{h.registry === "verified" ? <BadgeCheck size={16} aria-hidden /> : <ShieldQuestion size={16} aria-hidden />}{t(lang, h.registry === "verified" ? "pmjayListed" : "registryPossible")}</span>}
+        {h.nabh && <span className="tag">{t(lang, "nabh")}</span>}
+        {h.open24h && <span className="tag">{t(lang, "open24")}</span>}
+      </div>
+      <div className="block">
+        <h3 className="block-h">{t(lang, "servicesFound")}</h3>
+        {h.services.length
+          ? <div className="tags">{h.services.map((id) => <span key={id} className="tag">{svcLabel(id, lang)}</span>)}</div>
+          : <p className="small">{t(lang, "noServicesYet")}</p>}
+      </div>
+      <div className="btn-row actions">
+        {h.phone
+          ? <a className="btn btn-primary tap" href={`tel:${h.phone.replace(/[^\d+]/g, "")}`}><Phone size={18} aria-hidden />{t(lang, "call")}</a>
+          : <span className="btn" aria-disabled="true"><Phone size={18} aria-hidden />{t(lang, "call")}</span>}
+        <a className="btn btn-soft tap" href={dir} target="_blank" rel="noopener noreferrer"><Navigation size={18} aria-hidden />{t(lang, "directions")}</a>
+      </div>
+      {!h.phone && <p className="tiny" style={{ marginTop: 8, textAlign: "center" }}>{t(lang, "noPhone")}</p>}
+    </Sheet>
   );
 }

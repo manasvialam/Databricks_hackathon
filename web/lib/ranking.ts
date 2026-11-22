@@ -40,6 +40,7 @@ export const W = {
   dirichletKappa: 30,              // how tightly preference weights stay near the chosen ones
   minViable: 0.35,                 // below this P(service) a facility is not offered as a recommendation
   solid: 0.5,                      // at or above this, with no contradiction and prerequisites met, the evidence is 'solid'
+  modelFit: 0.6,                   // language-model fit, (fit - 0.5) * 2 * this: at most +-0.6 log-odds, and positive only where evidence already exists
   clearWinner: 0.35,               // P(best) under this = "several similar options"
 };
 
@@ -169,6 +170,7 @@ export interface RankInput {
   card: CardStatus;
   eta: Record<string, TrafficEta>;                   // by facility id
   distanceKm: Record<string, number>;
+  fit?: Record<string, { fit: number; why: string }>;   // optional language-model fit by facility id (lib/rerank.ts)
   draws?: number;
   seed?: number;
 }
@@ -193,6 +195,17 @@ export function rank(input: RankInput): RankResult {
 
   const pre = candidates.map((f) => {
     const per = services.map((s) => serviceLogOdds(f, s.id));
+    const mf = input.fit?.[f.id];
+    if (mf && per[0]) {
+      const c0 = claimFor(f, services[0].id);
+      const evidenced = !!c0 && c0.l !== "Weak" && c0.l !== "Contradicted" && c0.ct.length === 0;
+      let delta = (mf.fit - 0.5) * 2 * W.modelFit;
+      if (delta > 0 && !evidenced) delta = 0;                       // the model can never rescue weak or contradicted evidence
+      if (delta) {
+        const k: MsgKey = delta > 0 ? "whyModelFitGood" : "whyModelFitWeak";
+        per[0] = { p: sigmoid(logit(per[0].p) + delta), terms: [...per[0].terms, { label: t("en", k), delta, k, detail: mf.why }] };
+      }
+    }
     const lt = f.lt ?? "unknown";
     return {
       f, per, z: per.map((x) => invNorm(x.p)),
