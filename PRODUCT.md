@@ -51,3 +51,6 @@ Binding choices made by the user: the interface uses the Glisse library (Apple L
 
 ## Accessibility & Inclusion
 Built for low-literacy and frightened users: voice in and out, icons beside words, short sentences, large touch targets. Five scripts (Latin, Devanagari, Tamil, Telugu, Malayalam) must render correctly on low-end Android and iOS using system fonts where possible. Text on glass must keep WCAG AA contrast; honour reduced-motion and reduced-transparency; work on slow data and low-end phones; keyboard and screen-reader operable.
+
+## Handoff
+Full project handoff (repository map, data, ranking, status, to-do list): see `HANDOFF.md`.
