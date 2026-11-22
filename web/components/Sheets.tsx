@@ -1,30 +1,68 @@
 "use client";
-import { useEffect, useRef, useState } from "react";
-import { SegmentedControl, Slider } from "glisse";
-import { Minus, Phone, Plus, X } from "lucide-react";
+import { useCallback, useEffect, useRef, useState } from "react";
+import { Check, Minus, Phone, Plus, X } from "lucide-react";
 import type { ResultDto } from "@/lib/recommend";
 import type { RedFlagResult } from "@/lib/triage/redflags";
-import type { Preferences } from "@/lib/types";
-import { emergencyText, say, t, termText, type Lang, type Msg } from "@/lib/i18n";
-import type { Contribution } from "@/lib/types";
+import type { Contribution, Preferences } from "@/lib/types";
+import { emergencyText, LANGS, say, t, termText, type Lang, type Msg } from "@/lib/i18n";
 
 export type CardAnswer = "yes" | "no" | "unknown";
 
+/** iOS-style bottom sheet: springs up, closes with a slide, and can be dragged down by its grabber. */
 function Sheet({ title, onClose, lang, children }: { title: string; onClose: () => void; lang: Lang; children: React.ReactNode }) {
   const ref = useRef<HTMLDivElement>(null);
+  const [closing, setClosing] = useState(false);
+  const drag = useRef<{ y: number; dy: number; t: number } | null>(null);
+
+  const close = useCallback(() => {
+    if (closing) return;
+    setClosing(true);
+    const reduce = window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
+    window.setTimeout(onClose, reduce ? 0 : 260);
+  }, [closing, onClose]);
+
+  const closeRef = useRef(close);
+  closeRef.current = close;
+
   useEffect(() => {
     const prev = document.activeElement as HTMLElement | null;
-    ref.current?.focus();
-    const esc = (e: KeyboardEvent) => { if (e.key === "Escape") onClose(); };
+    ref.current?.focus({ preventScroll: true });
+    const esc = (e: KeyboardEvent) => { if (e.key === "Escape") closeRef.current(); };
     document.addEventListener("keydown", esc);
-    return () => { document.removeEventListener("keydown", esc); prev?.focus?.(); };
-  }, [onClose]);
+    const overflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => { document.removeEventListener("keydown", esc); document.body.style.overflow = overflow; prev?.focus?.({ preventScroll: true }); };
+  }, []);
+
+  const onDown = (e: React.PointerEvent) => {
+    drag.current = { y: e.clientY, dy: 0, t: performance.now() };
+    (e.target as HTMLElement).setPointerCapture?.(e.pointerId);
+    if (ref.current) ref.current.style.transition = "none";
+  };
+  const onMove = (e: React.PointerEvent) => {
+    if (!drag.current || !ref.current) return;
+    const dy = Math.max(0, e.clientY - drag.current.y);
+    drag.current.dy = dy;
+    ref.current.style.transform = `translateY(${dy}px)`;
+  };
+  const onUp = () => {
+    const d = drag.current; drag.current = null;
+    const el = ref.current;
+    if (!d || !el) return;
+    const v = d.dy / Math.max(1, performance.now() - d.t);
+    if (d.dy > 110 || v > 0.6) { el.style.setProperty("--drag", `${d.dy}px`); el.style.transform = ""; el.style.transition = ""; close(); return; }
+    el.style.transition = "transform .45s cubic-bezier(.32,.72,0,1)";
+    el.style.transform = "";
+  };
+
   return (
-    <div className="scrim" onClick={onClose}>
-      <div className="sheet" role="dialog" aria-modal="true" aria-label={title} tabIndex={-1} ref={ref} onClick={(e) => e.stopPropagation()}>
+    <div className="scrim" data-closing={closing} onClick={close}>
+      <div className="sheet" data-closing={closing} role="dialog" aria-modal="true" aria-label={title} tabIndex={-1} ref={ref} onClick={(e) => e.stopPropagation()}>
+        <button type="button" className="grabber" aria-label={t(lang, "close")} onClick={close}
+          onPointerDown={onDown} onPointerMove={onMove} onPointerUp={onUp} onPointerCancel={onUp} />
         <div className="sheet-head">
-          <h2 className="h2">{title}</h2>
-          <button type="button" className="btn btn-text close" onClick={onClose} aria-label={t(lang, "close")}><X size={22} aria-hidden /></button>
+          <h2 className="title">{title}</h2>
+          <button type="button" className="close tap" onClick={close} aria-label={t(lang, "close")}><X size={16} strokeWidth={2.5} aria-hidden /></button>
         </div>
         {children}
       </div>
@@ -38,33 +76,46 @@ function Term({ c, lang }: { c: Contribution; lang: Lang }) {
 }
 
 export function WhySheet({ r, lang, onClose, trafficNote }: { r: ResultDto; lang: Lang; onClose: () => void; trafficNote: Msg }) {
+  const pct = Math.round(r.pBest * 100);
   return (
     <Sheet title={t(lang, "why")} onClose={onClose} lang={lang}>
-      <p>{t(lang, "whyIntro")}</p>
-      <div className="why-row">
-        <b>{Math.round(r.pBest * 100)}%</b>
-        <div className="bar" aria-hidden><i style={{ width: `${Math.round(r.pBest * 100)}%` }} /></div>
+      <p className="muted">{t(lang, "whyIntro")}</p>
+      <div style={{ marginTop: 14 }}>
+        <div className="big-pct">{pct}<small>%</small></div>
+        <div className="bar" aria-hidden><i style={{ width: `${pct}%` }} /></div>
       </div>
-      <div className="section">
-        <h3>{t(lang, "positives")}</h3>
+      <div className="block">
+        <h3 className="block-h">{t(lang, "positives")}</h3>
         <ul className="why-list">
-          <li><Plus size={16} aria-hidden /><Term c={r.why.baseline} lang={lang} /></li>
-          {r.why.positive.map((p) => <li key={p.label}><Plus size={16} aria-hidden /><Term c={p} lang={lang} /></li>)}
+          <li><span className="why-ico pos"><Plus size={14} strokeWidth={2.5} aria-hidden /></span><Term c={r.why.baseline} lang={lang} /></li>
+          {r.why.positive.map((p) => <li key={p.label}><span className="why-ico pos"><Plus size={14} strokeWidth={2.5} aria-hidden /></span><Term c={p} lang={lang} /></li>)}
         </ul>
       </div>
       {r.why.negative.length > 0 && (
-        <div className="section">
-          <h3>{t(lang, "negatives")}</h3>
-          <ul className="why-list">{r.why.negative.map((p) => <li key={p.label}><Minus size={16} aria-hidden /><Term c={p} lang={lang} /></li>)}</ul>
+        <div className="block">
+          <h3 className="block-h">{t(lang, "negatives")}</h3>
+          <ul className="why-list">{r.why.negative.map((p) => <li key={p.label}><span className="why-ico neg"><Minus size={14} strokeWidth={2.5} aria-hidden /></span><Term c={p} lang={lang} /></li>)}</ul>
         </div>
       )}
-      <div className="section">
+      <div className="block card-flat" style={{ display: "grid", gap: 8 }}>
         <p className="small">{say(trafficNote, lang)}</p>
-        {r.registry && <p className="small" style={{ marginTop: 8 }}>{t(lang, "registryNote")}</p>}
-        <p className="small" style={{ marginTop: 8 }}>{t(lang, "estimate")}</p>
-        <p className="small" style={{ marginTop: 8 }}>{t(lang, "notAffiliated")}</p>
+        {r.registry && <p className="small">{t(lang, "registryNote")}</p>}
+        <p className="small">{t(lang, "estimate")}</p>
+        <p className="small">{t(lang, "notAffiliated")}</p>
       </div>
     </Sheet>
+  );
+}
+
+function Segmented<V extends string>({ value, onChange, items, labelledBy }: { value: V; onChange: (v: V) => void; items: { value: V; label: string }[]; labelledBy: string }) {
+  const i = Math.max(0, items.findIndex((x) => x.value === value));
+  return (
+    <div className="seg" role="radiogroup" aria-labelledby={labelledBy}>
+      <span className="seg-thumb" aria-hidden style={{ width: `calc((100% - 6px) / ${items.length})`, transform: `translateX(${i * 100}%)` }} />
+      {items.map((x) => (
+        <button key={x.value} type="button" role="radio" aria-checked={x.value === value} onClick={() => onChange(x.value)}>{x.label}</button>
+      ))}
+    </div>
   );
 }
 
@@ -79,19 +130,33 @@ export function PrefSheet({ lang, prefs, card, onApply, onClose }: {
   const [c, setC] = useState<CardAnswer>(card);
   return (
     <Sheet title={t(lang, "prefs")} onClose={onClose} lang={lang}>
-      <div className="field">
-        <label id="card-q">{t(lang, "card")}</label>
-        <SegmentedControl aria-labelledby="card-q" value={c} onValueChange={(v) => setC(v as CardAnswer)}
+      <div className="field" style={{ marginTop: 4 }}>
+        <span className="field-label" id="card-q">{t(lang, "card")}</span>
+        <Segmented labelledBy="card-q" value={c} onChange={setC}
           items={[{ value: "yes", label: t(lang, "yes") }, { value: "no", label: t(lang, "no") }, { value: "unknown", label: t(lang, "notSure") }]} />
       </div>
       {SLIDERS.map(({ k, label }) => (
         <div className="field" key={k}>
-          <label htmlFor={`s-${k}`}>{t(lang, label)}</label>
-          <Slider id={`s-${k}`} min={0} max={1} step={0.05} value={p[k]} onValueChange={(v) => setP({ ...p, [k]: v })} />
+          <label className="field-label" htmlFor={`s-${k}`}>{t(lang, label)}<output htmlFor={`s-${k}`}>{Math.round(p[k] * 100)}</output></label>
+          <input id={`s-${k}`} className="range" type="range" min={0} max={1} step={0.05} value={p[k]}
+            style={{ ["--fill" as string]: `${p[k] * 100}%` }} onChange={(e) => setP({ ...p, [k]: Number(e.target.value) })} />
         </div>
       ))}
-      <div className="actions" style={{ marginTop: 22 }}>
-        <button type="button" className="btn btn-primary wide" onClick={() => onApply(p, c)}>{t(lang, "apply")}</button>
+      <button type="button" className="btn btn-dark tap" style={{ width: "100%", marginTop: 28 }} onClick={() => onApply(p, c)}>{t(lang, "apply")}</button>
+    </Sheet>
+  );
+}
+
+export function LangSheet({ lang, onPick, onClose }: { lang: Lang; onPick: (l: Lang) => void; onClose: () => void }) {
+  return (
+    <Sheet title={t(lang, "language")} onClose={onClose} lang={lang}>
+      <div>
+        {LANGS.map((l) => (
+          <button key={l.id} type="button" className="check-row tap" lang={l.id} aria-pressed={l.id === lang} onClick={() => onPick(l.id)}>
+            <span>{l.native}{l.native !== l.label && <small lang="en">{l.label}</small>}</span>
+            {l.id === lang && <Check size={20} strokeWidth={2.5} aria-hidden />}
+          </button>
+        ))}
       </div>
     </Sheet>
   );
@@ -105,22 +170,22 @@ export function EmergencyCard({ gate, lang, online }: { gate: RedFlagResult; lan
       <h1 id="em-h">{t(lang, "emergencyTitle")}</h1>
       <p>{t(lang, "emergencyNow")}</p>
       <div className="emerg-call">
-        <a href="tel:108"><Phone size={30} aria-hidden /><div>{t(lang, "callNow", { n: 108 })}<span>{t(lang, "ambulance")}</span></div></a>
-        <a href="tel:112"><Phone size={30} aria-hidden /><div>{t(lang, "callNow", { n: 112 })}<span>{t(lang, "emergencyAll")}</span></div></a>
-        {helpline && <a href="tel:14416"><Phone size={30} aria-hidden /><div>{t(lang, "callNow", { n: 14416 })}<span>{t(lang, "teleManas")}</span></div></a>}
+        <a href="tel:108" className="tap"><span className="ring"><Phone size={22} aria-hidden /></span><div>{t(lang, "callNow", { n: 108 })}<span>{t(lang, "ambulance")}</span></div></a>
+        <a href="tel:112" className="tap"><span className="ring"><Phone size={22} aria-hidden /></span><div>{t(lang, "callNow", { n: 112 })}<span>{t(lang, "emergencyAll")}</span></div></a>
+        {helpline && <a href="tel:14416" className="tap"><span className="ring"><Phone size={22} aria-hidden /></span><div>{t(lang, "callNow", { n: 14416 })}<span>{t(lang, "teleManas")}</span></div></a>}
       </div>
       {cats.map((c) => {
         // the gate's own text is English; a translation replaces it whole, so a card never mixes two languages
         const tr = emergencyText(c.id, lang);
         const text = tr ?? { label: c.label, now: c.now, wait: c.whileWaiting };
         return (
-          <div key={c.id} lang={tr ? lang : "en"} style={{ marginTop: 16 }}>
-            <p style={{ fontSize: 18, marginTop: 0 }}><b>{text.label}.</b> {text.now}</p>
-            {text.wait && <p className="small" style={{ marginTop: 6 }}><span lang={lang}>{t(lang, "whileWaiting")}:</span> {text.wait}</p>}
+          <div key={c.id} lang={tr ? lang : "en"} className="emerg-cat">
+            <p><b>{text.label}.</b> {text.now}</p>
+            {text.wait && <p className="wait"><span lang={lang}>{t(lang, "whileWaiting")}:</span> {text.wait}</p>}
           </div>
         );
       })}
-      {!online && <p className="small" style={{ marginTop: 14 }}>{t(lang, "emergencyOffline")}</p>}
+      {!online && <p style={{ fontSize: 14 }}>{t(lang, "emergencyOffline")}</p>}
     </section>
   );
 }

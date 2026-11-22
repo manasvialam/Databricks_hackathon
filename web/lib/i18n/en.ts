@@ -105,6 +105,13 @@ export const en = {
   mixWarning: "Confirm details by phone.",
   voiceNote: "Voice input may be processed by your browser's speech service.",
   fewIn: "Few hospitals in our data for this area, so a missing hospital may only mean missing data.",
+  tapToSpeak: "Tap to speak",
+  orType: "or type below",
+  yourLocation: "Your location",
+  currentLocation: "Current location",
+  change: "Change",
+  likelyRange: "Likely range",
+  bestFor: "Best match for {service}",
 
   // evidence level, record field and facility type labels (shown on the slip)
   lvlStrong: "Strong",
