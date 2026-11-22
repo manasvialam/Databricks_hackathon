@@ -16,7 +16,7 @@ sys.path.insert(0, os.path.dirname(__file__))
 import run_sql
 
 APP = "https://facility-finder-7474656106086877.aws.databricksapps.com"
-EXPERIMENT = "/Users/akileshs@andrew.cmu.edu/facility-finder-eval"
+EXPERIMENT = "/Workspace/Hackathon/facility-finder-eval"
 CITIES = {"Patna": (25.6049, 85.1465), "Lucknow": (26.8467, 80.9462), "Chennai": (13.0827, 80.2707), "Kochi": (9.9312, 76.2673),
           "Hyderabad": (17.385, 78.4867), "Jaipur": (26.9124, 75.7873), "Guwahati": (26.1445, 91.7362), "Bhopal": (23.2599, 77.4126),
           "Port Blair": (11.6234, 92.7265), "Leh": (34.1526, 77.5771)}

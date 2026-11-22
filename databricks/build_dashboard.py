@@ -79,7 +79,7 @@ dash = {
 }
 
 body = {"display_name": "Facility finder: data, evidence and relationships", "warehouse_id": WH,
-        "parent_path": "/Workspace/Users/akileshs@andrew.cmu.edu", "serialized_dashboard": json.dumps(dash)}
+        "parent_path": "/Workspace/Hackathon", "serialized_dashboard": json.dumps(dash)}
 f = tempfile.NamedTemporaryFile("w", suffix=".json", delete=False, encoding="utf-8"); json.dump(body, f); f.close()
 env = dict(os.environ, MSYS_NO_PATHCONV="1")
 r = subprocess.run(["databricks", "lakeview", "create", "--json", "@" + f.name], capture_output=True, text=True, encoding="utf-8", env=env)
