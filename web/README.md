@@ -7,7 +7,7 @@ Next.js app that takes a spoken or typed need, decides how urgent it is, and rec
 ```powershell
 cd web
 npm install
-npm test            # 89 unit tests: ranker, geocoder, emergency gate, triage, traffic, API routes, golden queries
+npm test            # 221 tests: ranker, geocoder, emergency gate, triage, traffic, API routes, golden queries, five languages
 npm run dev         # http://localhost:3000
 npm run build ; npm start
 ```
@@ -45,3 +45,10 @@ python scripts/export_geocoder_data.py     # -> web/data/geocoder.json (reuses P
 - Traffic adapters (Google, Mapbox) are untested against a real key; test about 10 Indian routes and pick one.
 - The warehouse read path (`lib/databricks.ts` has the SQL client; the app reads the snapshot until the Delta table exists).
 - Hand-labelling `scripts/out/registry_match_review.csv` (100 pairs): the registry badge ships only if the "verified" tier is at least 95% precise.
+
+## Languages
+English, Hindi, Tamil, Telugu and Malayalam, chosen from the menu or taken from the phone's language on first visit.
+- **Screen text**: `lib/i18n/<lang>.ts`, one file per language for review (`en.ts` is the source). The server sends message keys, not English sentences, so switching language translates results already on screen. Quoted facility text stays in its original language, marked `lang="en"` for screen readers.
+- **Input**: service keywords in all five (`lib/services.ts`, `lib/triage/mapping.ts`); places typed or spoken in an Indian script are transliterated and matched (`lib/indic.ts`). Place names inside a sentence only match exactly, so an ordinary word is never turned into a town.
+- **Voice**: recognition listens in the chosen language; read-aloud uses an installed voice for that language and says so when the phone has none.
+- All non-English text is a draft that needs native-speaker review, and the emergency text clinician review as well. `tests/i18n.test.ts` checks that no string, placeholder or emergency number is missing.

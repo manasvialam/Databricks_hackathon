@@ -2,7 +2,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Button, Glass, Input, Menu } from "glisse";
 import { Languages, LocateFixed, Mic, SendHorizontal, SlidersHorizontal, Square, Phone } from "lucide-react";
-import { LANGS, hasKey, speechLang, t, type Lang } from "@/lib/i18n";
+import { LANGS, hasKey, isLang, say, speechLang, svcPlain, t, type Lang } from "@/lib/i18n";
 import { checkRedFlags, type RedFlagResult } from "@/lib/triage/redflags";
 import { PERSONA_BY_ID } from "@/lib/preferences";
 import type { Preferences, ServiceId, Urgency } from "@/lib/types";
@@ -51,6 +51,7 @@ export function App() {
   const [prefsTouched, setPrefsTouched] = useState(false);
   const [card, setCard] = useState<CardAnswer>("unknown");
   const [canMic, setCanMic] = useState(false);
+  const [notice, setNotice] = useState<string | null>(null);
 
   const history = useRef<string[]>([]);
   const pending = useRef<{ services: ServiceId[]; urgency: Urgency } | null>(null);
@@ -60,15 +61,21 @@ export function App() {
   locRef.current = loc;
 
   useEffect(() => {
-    const saved = safeGet("lang") as Lang | null;
-    if (saved && LANGS.some((l) => l.id === saved)) setLang(saved);
+    // a saved choice wins; otherwise start in the phone's own language when it is one of ours
+    const saved = safeGet("lang");
+    const phone = (navigator.languages ?? [navigator.language]).map((l) => l.toLowerCase().split("-")[0]).find(isLang);
+    if (isLang(saved)) setLang(saved); else if (phone) setLang(phone);
     setCanMic(canListen());
     setOnline(navigator.onLine);
     const on = () => setOnline(true), off = () => setOnline(false);
     window.addEventListener("online", on); window.addEventListener("offline", off);
     return () => { window.removeEventListener("online", on); window.removeEventListener("offline", off); };
   }, []);
-  useEffect(() => { document.documentElement.lang = lang; safeSet("lang", lang); }, [lang]);
+  useEffect(() => { document.documentElement.lang = lang; document.title = t(lang, "appTitle"); }, [lang]);
+  const chooseLang = useCallback((l: Lang) => {
+    listener.current?.stop(); stopSpeaking(); setNotice(null);
+    setLang(l); safeSet("lang", l);
+  }, []);
 
   // services available near the person, before they say anything
   useEffect(() => {
@@ -87,7 +94,8 @@ export function App() {
       const data = await api<RecommendResponse>("/api/recommend", body);
       setRec(data); setSel(0); setView("result");
     } catch (e) {
-      setErrMsg(e instanceof Error && e.message !== "error" ? e.message : t(lang, "error"));
+      // server messages are English; show our own sentence in the person's language
+      setErrMsg(t(lang, (e as { status?: number }).status === 422 ? "outsideIndia" : "error"));
       setView("error");
     }
   }, [prefs, card, prefsTouched, lang]);
@@ -114,7 +122,7 @@ export function App() {
       const g = await api<{ status: string; lat?: number; lon?: number; matched?: string; message?: string; candidates?: Candidate[] }>(`/api/geocode?q=${encodeURIComponent(q.trim())}`);
       if (g.status === "ok" && g.lat != null && g.lon != null) setLocation({ lat: g.lat, lon: g.lon, label: g.matched ?? q });
       else if (g.status === "ambiguous") { setCandidates(g.candidates ?? []); setLocMsg(t(lang, "whichState")); }
-      else setLocMsg(g.message ?? t(lang, "none"));
+      else setLocMsg(t(lang, "placeNotFound"));
     } catch { setLocMsg(t(lang, "error")); }
     setLocBusy(false);
   }, [lang, setLocation]);
@@ -123,7 +131,7 @@ export function App() {
     const msg = raw.trim();
     if (!msg) return;
     stopSpeaking();
-    setSaid(msg); setText(""); setCaption(""); setCareNote(null); setErrMsg(null); setRec(null);
+    setSaid(msg); setText(""); setCaption(""); setCareNote(null); setErrMsg(null); setRec(null); setNotice(null);
     const g = checkRedFlags(msg);              // runs in the browser: works with no network
     setGate(g);
     history.current = [...history.current, msg].slice(-6);
@@ -132,7 +140,7 @@ export function App() {
       const r = await api<{
         triage: { emergency: RedFlagResult | null; urgency: Urgency; services: ServiceId[]; understood: boolean; followUps: string[]; note: string | null };
         location: { lat: number; lon: number; matched: string } | null;
-      }>("/api/triage", { message: msg, history: history.current.slice(0, -1) });
+      }>("/api/triage", { message: msg, history: history.current.slice(0, -1), lang });
       const tr = r.triage;
       if (tr.emergency) setGate(tr.emergency);
       let at = locRef.current;
@@ -151,15 +159,20 @@ export function App() {
   const toggleMic = useCallback(() => {
     if (listening) { listener.current?.stop(); return; }
     stopSpeaking();
-    setCaption("");
+    setCaption(""); setNotice(null);
     const l = listen(speechLang(lang), {
       interim: setCaption,
       final: (v) => { void run(v); },
-      error: (code) => { if (code === "not-allowed" || code === "service-not-allowed") setErrMsg(t(lang, "voiceUnavailable")); },
+      error: (code) => {
+        if (code === "not-allowed" || code === "service-not-allowed" || code === "start-failed") setNotice(t(lang, "voiceUnavailable"));
+        else if (code === "language-not-supported") setNotice(t(lang, "micLangUnavailable"));
+        else if (code === "no-speech") setNotice(t(lang, "micNoSpeech"));
+        else if (code === "network") setNotice(t(lang, online ? "error" : "offline"));
+      },
       end: () => { setListening(false); listener.current = null; },
     });
-    if (l) { listener.current = l; setListening(true); } else setErrMsg(t(lang, "voiceUnavailable"));
-  }, [listening, lang, run]);
+    if (l) { listener.current = l; setListening(true); } else setNotice(t(lang, "voiceUnavailable"));
+  }, [listening, lang, run, online]);
 
   const picked = rec?.results[sel] ?? null;
   const scale = useMemo(() => Math.max(10, ...(rec?.results ?? []).map((r) => r.etaHigh)) * 1.1, [rec]);
@@ -168,14 +181,15 @@ export function App() {
   const readSlip = () => {
     if (!picked) return;
     const level = t(lang, picked.solid ? (picked.pService >= 0.75 ? "sureHigh" : picked.pService >= 0.55 ? "sureMid" : "sureLow") : "sureLow");
-    speak(t(lang, "readSlip", { name: picked.name, min: picked.etaMinutes, km: picked.distanceKm, sure: `${t(lang, "howSure")}: ${level}.` }), hasKey(lang, "readSlip") ? speechLang(lang) : "en-IN");
+    const spoke = speak(t(lang, "readSlip", { name: picked.name, min: picked.etaMinutes, km: picked.distanceKm, sure: `${t(lang, "howSure")}: ${level}.` }), hasKey(lang, "readSlip") ? speechLang(lang) : "en-IN");
+    setNotice(spoke ? null : t(lang, "ttsUnavailable"));
   };
 
   return (
     <div className="shell">
       <Glass className="strip" data-theme="dark">
         <Menu aria-label={t(lang, "language")} icon={<Languages size={22} />} align="start"
-          items={LANGS.map((l) => ({ label: `${l.native}${l.id === lang ? "  ✓" : ""}`, onSelect: () => setLang(l.id) }))} />
+          items={LANGS.map((l) => ({ label: `${l.native}${l.id === lang ? "  ✓" : ""}`, onSelect: () => chooseLang(l.id) }))} />
         <span className="strip-title">{t(lang, "appTitle")}</span>
         <Button variant="filled" tint="#C8102E" icon={<Phone size={18} />} aria-label={t(lang, "emergencyCall")}
           onClick={() => { window.location.href = "tel:108"; }}>108</Button>
@@ -184,6 +198,7 @@ export function App() {
       <main className="col stack" id="main">
         <h1 className="sr-only">{t(lang, "appTitle")}</h1>
         {said && <p className="you-said">{t(lang, "said")}: <q>{said}</q></p>}
+        {notice && <p className="notes" role="status">{notice}</p>}
 
         {gate && <EmergencyCard gate={gate} lang={lang} online={online} />}
 
@@ -205,7 +220,7 @@ export function App() {
                 <li key={s.id}><button type="button" className="near-item" onClick={() => {
                   const urgency: Urgency = s.urgentByNature ? "urgent" : "routine";
                   if (loc) void fetchRec([s.id], urgency, loc); else { pending.current = { services: [s.id], urgency }; setView("needplace"); }
-                }}><span className="near-name">{svcLabel(s.id, lang)}</span><span className="near-plain">{s.plain}</span></button></li>
+                }}><span className="near-name">{svcLabel(s.id, lang)}</span><span className="near-plain">{svcPlain(s.id, lang)}</span></button></li>
               ))}
             </ul>
           </div>
@@ -230,7 +245,7 @@ export function App() {
             )}
             {loc && (
               <div className="locrow">
-                <span className="chip"><LocateFixed size={16} aria-hidden />{loc.label ?? t(lang, "useLocation")}</span>
+                <span className="chip"><LocateFixed size={16} aria-hidden />{loc.label ? <span lang="en">{loc.label}</span> : t(lang, "useLocation")}</span>
                 <button type="button" className="btn btn-text" onClick={() => { setLoc(null); setNearby([]); }}>{t(lang, "placeInput")}</button>
               </div>
             )}
@@ -254,7 +269,7 @@ export function App() {
 
         {view === "result" && rec && picked && (
           <>
-            {rec.notes.length > 0 && <div className="notes">{rec.notes.map((n) => <p key={n}>{n}</p>)}</div>}
+            {rec.notes.length > 0 && <div className="notes">{rec.notes.map((n) => <p key={n.text}>{say(n, lang)}</p>)}</div>}
             {rec.confidence === "several_similar" && <div className="notes"><p>{t(lang, "mixWarning")}</p></div>}
             <Slip r={picked} scale={scale} lang={lang} services={rec.services} onWhy={() => setSheet("why")} onSpeak={readSlip} />
             <div className="actions" style={{ marginTop: 0 }}>
@@ -266,7 +281,7 @@ export function App() {
                 <div className="alts">
                   {rec.results.map((r, i) => i === sel ? null : (
                     <button key={r.id} type="button" className="alt" onClick={() => { setSel(i); window.scrollTo({ top: 0, behavior: "smooth" }); }}>
-                      <span className="alt-name">{r.name}</span>
+                      <span className="alt-name" lang="en">{r.name}</span>
                       <span className="alt-meta">{r.etaMinutes} {t(lang, "min")} · {r.distanceKm} {t(lang, "km")}</span>
                       <span className="alt-sub">{[r.tags.includes("fastest") && t(lang, "fastest"), r.tags.includes("most_trusted") && t(lang, "mostTrusted"), r.registry?.tier === "verified" && t(lang, "registryListed"), !r.solid && t(lang, "weakNote")].filter(Boolean).join(" · ")}</span>
                     </button>
@@ -274,12 +289,12 @@ export function App() {
                 </div>
               </>
             )}
-            {rec.coverage.context.length > 0 && <div className="notes" style={{ marginTop: 10 }}>{rec.coverage.context.map((c) => <p key={c}>{c}</p>)}</div>}
+            {rec.coverage.context.length > 0 && <div className="notes" style={{ marginTop: 10 }}>{rec.coverage.context.map((c) => <p key={c.text}>{say(c, lang)}</p>)}</div>}
             <p className="foot">{t(lang, "estimate")} {t(lang, "notAffiliated")}</p>
           </>
         )}
         {view === "result" && rec && !picked && (
-          <div className="panel"><p>{t(lang, "none")}</p>{rec.notes.map((n) => <p key={n} className="small" style={{ marginTop: 8 }}>{n}</p>)}</div>
+          <div className="panel"><p>{t(lang, "none")}</p>{rec.notes.map((n) => <p key={n.text} className="small" style={{ marginTop: 8 }}>{say(n, lang)}</p>)}</div>
         )}
         {showIdle && <p className="foot">{t(lang, "notAffiliated")}</p>}
       </main>

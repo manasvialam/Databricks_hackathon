@@ -1,5 +1,6 @@
 import "server-only";
 import type { TrafficEta } from "./types";
+import { t, type MsgKey } from "./i18n";
 
 /**
  * Travel time with live traffic, for a short list of candidates only.
@@ -11,7 +12,7 @@ import type { TrafficEta } from "./types";
  */
 export interface LatLon { lat: number; lon: number }
 export interface Dest extends LatLon { id: string }
-export interface EtaResult { etas: Record<string, TrafficEta>; live: boolean; provider: string | null; note: string }
+export interface EtaResult { etas: Record<string, TrafficEta>; live: boolean; provider: string | null; note: string; noteKey: MsgKey }
 
 // ---------- heuristic -----------------------------------------------------------------------------------------------
 export function peakFactor(date = new Date()): number {
@@ -106,7 +107,7 @@ export async function getEtas(
     const hit = cache.get(ck(d.id));
     if (hit && now.getTime() - hit.at < TTL_MS) etas[d.id] = hit.eta; else need.push(d);
   }
-  let note = "Estimated travel time, no live traffic.";
+  let noteKey: MsgKey = "trafficNoteEst";
   let live = Object.values(etas).some((e) => e.live);
   const fetchLive = deps.fetchLive ?? (provider === "google" && key ? (o: LatLon, d: Dest[]) => googleEtas(o, d, key) : provider === "mapbox" && key ? (o: LatLon, d: Dest[]) => mapboxEtas(o, d, key) : null);
 
@@ -116,14 +117,14 @@ export async function getEtas(
       const got = await fetchLive(origin, need);
       for (const d of need) if (got[d.id]) { etas[d.id] = got[d.id]; cache.set(ck(d.id), { at: now.getTime(), eta: got[d.id] }); }
       live = true;
-      note = "Travel time uses live traffic.";
+      noteKey = "trafficNoteLive";
     } catch {
-      note = "Live traffic was unavailable, so travel times are estimated.";
+      noteKey = "trafficNoteUnavailable";
     }
   } else if (need.length && fetchLive) {
-    note = "The live-traffic allowance for today is used up, so travel times are estimated.";
+    noteKey = "trafficNoteQuota";
   }
   for (const d of dests) if (!etas[d.id]) etas[d.id] = heuristicEta(d.straightKm, now);
-  if (live && Object.values(etas).some((e) => !e.live)) note = "Live traffic for most options; a few are estimated.";
-  return { etas, live, provider: live ? provider : null, note };
+  if (live && Object.values(etas).some((e) => !e.live)) noteKey = "trafficNoteMixed";
+  return { etas, live, provider: live ? provider : null, note: t("en", noteKey), noteKey };
 }

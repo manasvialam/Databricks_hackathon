@@ -16,6 +16,11 @@ import type {
 } from "./types";
 import { TAU_MINUTES, normalise, effectivePreferences } from "./preferences";
 import type { CardStatus } from "./preferences";
+import { msg, t, type Msg, type MsgKey, type Vars } from "./i18n";
+
+const LEVEL_TERM: Record<ClaimLevel, MsgKey> = {
+  Strong: "whyStrong", Moderate: "whyModerate", Inferred: "whyInferred", Weak: "whyWeak", Contradicted: "whyContradicted",
+};
 
 // ---------- weights (hand-set priors) -------------------------------------------------------------------------------
 export const W = {
@@ -59,43 +64,46 @@ export function claimFor(f: Facility, service: string): Claim | null {
 export function serviceLogOdds(f: Facility, service: string): { p: number; terms: Contribution[] } {
   const c = claimFor(f, service);
   const level: ClaimLevel | "none" = c ? c.l : "none";
-  const terms: Contribution[] = [{ label: c ? `${level} evidence in the facility's own text` : "No evidence found", delta: logit(W.prior[level]) }];
+  // every term carries a message key so the interface can explain it in the person's language (lib/i18n)
+  const baseKey: MsgKey = c ? LEVEL_TERM[level as ClaimLevel] : "whyNone";
+  const terms: Contribution[] = [{ label: t("en", baseKey), delta: logit(W.prior[level]), k: baseKey }];
   let total = terms[0].delta;
-  const add = (label: string, delta: number, detail?: string) => {
+  const add = (k: MsgKey, delta: number, detail?: { text: string; dk?: MsgKey; dv?: Vars }) => {
     if (!delta) return;
-    terms.push({ label, delta, detail });
+    terms.push({ label: t("en", k), delta, k, ...(detail ? { detail: detail.text, dk: detail.dk, dv: detail.dv } : {}) });
     total += delta;
   };
+  const keyed = (dk: MsgKey, dv: Vars) => ({ text: t("en", dk, dv), dk, dv });
 
   if (c) {
-    add("Several fields agree", Math.min(W.extraFieldCap, W.perExtraField * Math.max(0, c.nf - 1)), `${c.nf} fields: ${c.f.join(", ")}`);
-    if (c.sp) add("Specific details (counts, models)", W.specificity);
-    if (!c.pm) add("A prerequisite for this service is missing", W.prerequisitesMissing);
-    if (c.ct.length) add("Evidence contradicts this service", Math.max(W.contradictionCap, W.perContradiction * c.ct.length), c.ct[0]);
+    add("whyFields", Math.min(W.extraFieldCap, W.perExtraField * Math.max(0, c.nf - 1)), keyed("whyFieldsDetail", { n: c.nf, list: c.f.join(", ") }));
+    if (c.sp) add("whySpecific", W.specificity);
+    if (!c.pm) add("whyPrereq", W.prerequisitesMissing);
+    if (c.ct.length) add("whyContra", Math.max(W.contradictionCap, W.perContradiction * c.ct.length), { text: c.ct[0] });   // data text, English only
     const named = c.u.filter((u) => u.n).length;
-    if (named) add("Sources name this facility", Math.min(W.citationCap, W.perNamedCitation * named));
+    if (named) add("whyNamed", Math.min(W.citationCap, W.perNamedCitation * named));
   }
-  if (f.ft != null) add("Overall facility trust", ((f.ft - 70) / 100) * W.trustScale, `trust ${f.ft}/100`);
-  if (f.ms) add("Record may mix several facilities", W.perMergeSuspect * f.ms, `merge-suspect score ${f.ms}`);
+  if (f.ft != null) add("whyTrust", ((f.ft - 70) / 100) * W.trustScale, keyed("whyTrustDetail", { n: f.ft }));
+  if (f.ms) add("whyMerge", W.perMergeSuspect * f.ms, keyed("whyMergeDetail", { n: f.ms }));
 
   // registry evidence, capped as a group
   let reg = 0;
-  const regTerms: Contribution[] = [];
+  const regTerms: { k: MsgKey; delta: number }[] = [];
   if (f.rg && f.rg.t === "verified" && !f.rg.sus) {
     reg += W.registryIdentity;
-    regTerms.push({ label: "Listed in the government PM-JAY registry", delta: W.registryIdentity });
+    regTerms.push({ k: "whyRegistry", delta: W.registryIdentity });
     if (f.rg.svc.includes(service)) {
       reg += W.registryService;
-      regTerms.push({ label: "Registry lists a matching specialty package", delta: W.registryService });
+      regTerms.push({ k: "whyRegistrySvc", delta: W.registryService });
     }
-    if (f.rg.nabh) { reg += W.nabh; regTerms.push({ label: "NABH accredited", delta: W.nabh }); }
+    if (f.rg.nabh) { reg += W.nabh; regTerms.push({ k: "whyNabh", delta: W.nabh }); }
   }
   const scale = reg > W.registryCap ? W.registryCap / reg : 1;
-  for (const t of regTerms) add(t.label, t.delta * scale);
+  for (const r of regTerms) add(r.k, r.delta * scale);
 
-  if (f.wd) add("Matched to a Wikidata entry", W.wikidata);
-  if (f.rt === "moderate") add("Some public recognition", W.recognitionModerate);
-  if (f.rt === "high") add("High public recognition", W.recognitionHigh);
+  if (f.wd) add("whyWikidata", W.wikidata);
+  if (f.rt === "moderate") add("whyRecogModerate", W.recognitionModerate);
+  if (f.rt === "high") add("whyRecogHigh", W.recognitionHigh);
 
   terms.sort((a, b) => Math.abs(b.delta) - Math.abs(a.delta));
   return { p: sigmoid(total), terms };
@@ -169,7 +177,7 @@ export interface RankResult {
   ranked: RankedFacility[];
   picks: Picks;
   confidence: Confidence;
-  notes: string[];
+  notes: Msg[];
 }
 
 export function rank(input: RankInput): RankResult {
@@ -253,12 +261,12 @@ export function rank(input: RankInput): RankResult {
 
   const viable = ranked.filter((x) => x.primaryPService >= W.minViable);
   const solid = viable.filter((x) => x.solid);
-  const notes: string[] = [];
+  const notes: Msg[] = [];
   let confidence: Confidence = "clear";
-  if (!viable.length) { confidence = "none_reliable"; notes.push("No facility nearby has reliable evidence for this service."); }
+  if (!viable.length) { confidence = "none_reliable"; notes.push(msg("noteNoneReliable")); }
   else {
-    if (!solid.length) notes.push("Only weaker evidence was found nearby. Call before you travel.");
-    if ((solid[0] ?? viable[0]).pBest < W.clearWinner) { confidence = "several_similar"; notes.push("Several options are about equally good; there is no clear winner."); }
+    if (!solid.length) notes.push(msg("noteOnlyWeak"));
+    if ((solid[0] ?? viable[0]).pBest < W.clearWinner) { confidence = "several_similar"; notes.push(msg("noteSeveral")); }
   }
 
   // picks come from options with solid evidence; weaker ones are only used when nothing solid exists

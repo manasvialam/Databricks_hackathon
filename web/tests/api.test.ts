@@ -44,7 +44,7 @@ describe("POST /api/recommend", () => {
     expect(j.results.length).toBeGreaterThan(0);
     expect(j.results[0].evidence[0].snippets.length).toBeGreaterThan(0);
     expect(j.label).toMatch(/estimate/i);
-    expect(j.traffic.note).toMatch(/traffic/i);
+    expect(j.traffic.note.text).toMatch(/traffic/i);
   });
   it("asks for the state when the place is ambiguous and rejects points outside India", async () => {
     const a = await recommendPost(post("/api/recommend", { services: ["icu"], location: { query: "Aurangabad" } }));

@@ -43,9 +43,9 @@ Large files use Git LFS (`*.csv`, `*.parquet`). Run `git lfs pull` after cloning
 
 - Next.js 16 (App Router, standalone output), React 19, TypeScript, Vitest, Glisse 0.6 (liquid glass), lucide-react, Atkinson Hyperlegible.
 - API routes: `/api/triage`, `/api/recommend`, `/api/nearby`, `/api/geocode`, `/api/health`.
-- UI: `components/App.tsx` (state and flow), `Slip.tsx` (the referral slip, road bar), `Sheets.tsx` (why, preferences, emergency card), `lib/i18n.ts` (five languages), `lib/client/speech.ts` (browser voice in and out), `app/globals.css` (tokens).
+- UI: `components/App.tsx` (state and flow), `Slip.tsx` (the referral slip, road bar), `Sheets.tsx` (why, preferences, emergency card), `lib/i18n/` (five languages, one file each: `en.ts` is the source, `hi.ts`, `ta.ts`, `te.ts`, `ml.ts` hold the interface text, service names and emergency instructions), `lib/indic.ts` (Indian scripts to Latin, so places typed or spoken in Hindi, Tamil, Telugu or Malayalam geocode), `lib/client/speech.ts` (browser voice in and out; read-aloud only uses a voice for the chosen language), `app/globals.css` (tokens).
 - Capability tiers, all optional: (1) warehouse + model + live traffic, (2) snapshot + model, (3) snapshot + rules, which needs no configuration. Copy `web/.env.example` to `.env.local`; never commit secrets.
-- Run: `cd web; npm install; npm run dev` (port 3000), `npm test` (132 tests), `npm run typecheck`, `npm run build`. A preview config is in `.claude/launch.json` (port 3100).
+- Run: `cd web; npm install; npm run dev` (port 3000), `npm test` (221 tests), `npm run typecheck`, `npm run build`. A preview config is in `.claude/launch.json` (port 3100).
 
 ## 6. Design
 
@@ -53,14 +53,14 @@ Direction "the referral slip": one answer you can show at the door. World: India
 
 ## 7. Status
 
-Done and tested: ranking engine, triage and emergency gate (English, Hindi, Hinglish; draft Tamil/Telugu/Malayalam), geocoder, traffic fallback, registry matching, snapshot export, API, full UI, 132 passing tests, production build, design docs.
+Done and tested: ranking engine, triage and emergency gate (English, Hindi, Hinglish; draft Tamil/Telugu/Malayalam), geocoder, traffic fallback, registry matching, snapshot export, API, full UI in five languages (screen text, service keywords, native-script place names, read-aloud voice choice), 221 passing tests, production build, design docs.
 
 ## 8. What is not done (your to-do list)
 
 1. **Databricks side (the next task).** Nothing is created yet. Steps: `databricks auth login --host https://dbc-43fc181d-51b6.cloud.databricks.com`; create schema and volume; load `facilities_final.parquet` as a Delta table with column comments plus a narrow serving table and a long claims table; SQL `recommend()` function; Genie space; AI/BI dashboard (coverage, quality, registry match rate); MLflow evaluation on golden queries; deploy as a Databricks App (`web/app.yaml` not written); Vercel mirror. Optional MCP: `claude mcp add --transport http databricks-sql <host>/api/2.0/mcp/sql --header "Authorization: Bearer $env:DATABRICKS_TOKEN"` (set the token in your own shell, never in chat).
 2. **Verify unknowns on day 0:** Do Databricks Apps run a Next.js standalone build on Free Edition? Is external OAuth M2M allowed? Which model endpoint names exist (set `FM_ENDPOINT`)? Do the challenge rules allow anything beyond Free Edition? Glisse on Safari, Firefox and low-end Android? Traffic provider on about 10 real Indian routes (the adapters are untested against real keys). Registry source terms.
 3. **Hand-label** `registry_match_review.csv`; ablation and bias report for the registry weighting (clinics and non-empanelled private facilities must not be buried); calibrate weights once manual verifications exist.
-4. **Review by people:** native speakers for Hindi, Tamil, Telugu, Malayalam strings (Tamil/Telugu/Malayalam are partial and fall back to English per key; `missingKeys(lang)` lists the gaps); a clinician for all emergency wording and the "while you wait" lines; red-team the emergency gate with 100+ prompts.
+4. **Review by people:** native speakers for Hindi, Tamil, Telugu, Malayalam strings (all five are complete drafts, one file each in `web/lib/i18n/`; also the service keywords in `lib/services.ts` and the native place names in `lib/indic.ts`; `tests/i18n.test.ts` fails if a string, placeholder or emergency number goes missing); a clinician for all emergency wording and the "while you wait" lines; red-team the emergency gate with 100+ prompts.
 5. **Visual check at 390x844** on a real phone or a wide pane: it has never been seen at that size. Also test reduced-transparency, reduced-motion and screen-reader use.
 6. **Open decisions:** product name and logo; traffic provider and budget; whether the registry list may be used beyond validation; whether to show the 37,900 PM-JAY hospitals absent from our data as a labelled secondary pool; optional Whisper fallback for voice.
 7. **Privacy and consent:** location is used per request only and no transcripts are stored; the voice notice says browser speech may reach the vendor. Confirm this meets the challenge's rules.

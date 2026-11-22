@@ -2,6 +2,7 @@ import "server-only";
 import fs from "node:fs";
 import path from "node:path";
 import { haversineKm, inIndia } from "./geo";
+import { asciiDigits, hasIndic, nativePlace, phon, toLatin } from "./indic";
 
 // Port of Person_2/geocoder.py. Data comes from scripts/export_geocoder_data.py.
 type PlaceRow = [number, string, number, number, "d" | "p" | "c", string, number]; // state idx, district, lat, lon, level, label, weight
@@ -64,9 +65,13 @@ const LEVEL_NAME: Record<string, GeoLevel> = { c: "city", p: "post_office", d: "
 const ok = (lat: number, lon: number, level: GeoLevel, matched: string, state: string | null, district: string | null, confidence: number, note: string | null = null): GeocodeResult =>
   ({ status: "ok", lat: Math.round(lat * 1e6) / 1e6, lon: Math.round(lon * 1e6) / 1e6, level, matched, state, district, confidence: Math.round(confidence * 100) / 100, note });
 
-export function geocode(query: string, stateHint?: string | null): GeocodeResult {
+/**
+ * strict: only an exact match on a city or district (or a known native-script name). Used for place phrases pulled
+ * out of a sentence, where a loose match could turn an ordinary word into a town.
+ */
+export function geocode(query: string, stateHint?: string | null, opts: { strict?: boolean } = {}): GeocodeResult {
   const d = load();
-  const q = (query ?? "").trim();
+  const q = asciiDigits((query ?? "").trim());
   if (!q) return { status: "not_found", message: "empty query" };
 
   const digits = q.replace(/[ -]/g, "");
@@ -82,6 +87,8 @@ export function geocode(query: string, stateHint?: string | null): GeocodeResult
     if (inIndia(b, a)) return ok(b, a, "coordinates", q, null, null, 0.9, "latitude and longitude looked swapped and were corrected");
     return { status: "not_found", message: "coordinates are outside India" };
   }
+
+  if (hasIndic(q)) return geocodeIndic(q, stateHint ?? null, !!opts.strict);
 
   let st = normState(stateHint ?? null);
   const parts = q.split(",").map((s) => s.trim()).filter(Boolean);
@@ -100,6 +107,73 @@ export function geocode(query: string, stateHint?: string | null): GeocodeResult
     const close = Object.keys(d.places).map((k) => [k, similarity(key, k)] as const).filter(([, s]) => s >= FUZZY).sort((a, b) => b[1] - a[1]).slice(0, 3);
     if (close.length) { cands = close.flatMap(([k]) => d.places[k]); how = "fuzzy"; }
   }
+  return resolve(cands, how, st, name);
+}
+
+// ---------- names written in an Indian script -----------------------------------------------------------------------
+let phonIdx: Map<string, string[]> | null = null;
+function phonIndex(): Map<string, string[]> {
+  if (phonIdx) return phonIdx;
+  phonIdx = new Map();
+  for (const k of Object.keys(load().places)) {
+    const p = phon(k);
+    const list = phonIdx.get(p);
+    if (list) list.push(k); else phonIdx.set(p, [k]);
+  }
+  return phonIdx;
+}
+
+function indicState(s: string): string | null {
+  const latin = toLatin(s);
+  const direct = normState(latin);
+  if (direct) return direct;
+  const k = phon(latin);
+  if (k.length < 4) return null;
+  let best: [string, number] | null = null;
+  for (const n of load().states) {
+    const sim = similarity(k, phon(n));
+    if (sim >= 0.8 && (!best || sim > best[1])) best = [n, sim];
+  }
+  return best?.[0] ?? null;
+}
+
+function geocodeIndic(q: string, stateHint: string | null, strict: boolean): GeocodeResult {
+  const d = load();
+  const parts = q.split(/[,،]/).map((s) => s.trim()).filter(Boolean);
+  const name = parts[0];
+  let st = stateHint ? normState(stateHint) ?? indicState(stateHint) : null;
+  for (const p of parts.slice(1)) st = indicState(p) ?? st;
+
+  const en = nativePlace(name);
+  if (en) return geocode(en, st);
+
+  if (!strict && parts.length === 1) {
+    const sOnly = indicState(name);
+    if (sOnly && d.stateCentroid[sOnly]) {
+      const c = d.stateCentroid[sOnly];
+      return ok(c[0], c[1], "state", sOnly, sOnly, null, 0.5, "only the state centre is known; give a city, district or PIN for a better answer");
+    }
+  }
+
+  const key = phon(toLatin(name));
+  if (key.length < 4) return { status: "not_found", message: `could not find '${name}'` };
+  let keys = phonIndex().get(key) ?? [];
+  let how = "exact";
+  if (!keys.length && !strict) {
+    // only the closest spelling(s): a looser net would turn one town into an "ambiguous" list of unrelated ones
+    const scored = [...phonIndex().keys()].map((k) => [k, similarity(key, k)] as const).filter(([, s]) => s >= 0.8);
+    const top = Math.max(0, ...scored.map(([, s]) => s));
+    keys = scored.filter(([, s]) => s === top).flatMap(([k]) => phonIndex().get(k) ?? []);
+    how = "fuzzy";
+  }
+  let cands = keys.flatMap((k) => d.places[k]);
+  if (strict) cands = cands.filter((c) => c[4] === "c" || c[4] === "d");
+  return resolve(cands, how, st, name);
+}
+
+function resolve(candsIn: PlaceRow[], how: string, st: string | null, name: string): GeocodeResult {
+  const d = load();
+  let cands = candsIn;
   if (st) cands = cands.filter((c) => d.states[c[0]] === st);
   if (!cands.length) return { status: "not_found", message: `could not find '${name}'${st ? ` in ${st}` : ""}` };
 

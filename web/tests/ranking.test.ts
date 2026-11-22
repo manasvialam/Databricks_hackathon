@@ -135,7 +135,7 @@ describe("solid vs weaker evidence", () => {
   it("falls back to weaker options when nothing is solid, and says so", () => {
     const res = run([fac({ cl: [claim("Moderate", { pm: false })] })]);
     expect(res.ranked[0].solid).toBe(false);
-    expect(res.notes.join(" ")).toMatch(/weaker evidence/i);
+    expect(res.notes.map((n) => n.text).join(" ")).toMatch(/weaker evidence/i);
     expect(res.picks.best).not.toBeNull();
   });
 });

@@ -41,6 +41,6 @@ describe("golden queries on the real snapshot", () => {
 
   it("widens the search and tells the user", async () => {
     const r = await recommend({ services: ["nicu"], urgency: "urgent", lat: 27.4, lon: 94.2 }, { traffic: noTraffic as never });
-    if (r.widenedFrom) expect(r.notes.join(" ")).toMatch(/widened/i);
+    if (r.widenedFrom) expect(r.notes.map((n) => n.text).join(" ")).toMatch(/widened/i);
   });
 });

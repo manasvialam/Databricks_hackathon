@@ -2,6 +2,7 @@ import type { ServiceId, Urgency } from "../types";
 import { isServiceId } from "../services";
 import { checkRedFlags, type RedFlagResult } from "./redflags";
 import { matchNeeds, maxUrgency, placeCandidates, type Condition } from "./mapping";
+import type { Lang } from "../i18n";
 
 export interface LlmExtraction {
   symptoms: string[];
@@ -12,7 +13,8 @@ export interface LlmExtraction {
   location?: string | null;
   summary?: string;
 }
-export type LlmExtractor = (text: string, history: string[]) => Promise<LlmExtraction | null>;
+/** `lang` is the interface language: follow-up questions and the summary should come back in it. */
+export type LlmExtractor = (text: string, history: string[], lang?: Lang) => Promise<LlmExtraction | null>;
 
 export interface TriageResult {
   emergency: RedFlagResult | null;
@@ -40,14 +42,14 @@ export function validateExtraction(x: unknown): LlmExtraction | null {
   return { symptoms: arr(o.symptoms).slice(0, 8), urgency: urg, services: arr(o.services).filter(isServiceId), possibleConditions: conds, followUps: arr(o.followUps).slice(0, 2), location: typeof o.location === "string" ? o.location.slice(0, 80) : null, summary: typeof o.summary === "string" ? o.summary.slice(0, 300) : undefined };
 }
 
-export async function triage(text: string, opts: { history?: string[]; llm?: LlmExtractor | null } = {}): Promise<TriageResult> {
+export async function triage(text: string, opts: { history?: string[]; llm?: LlmExtractor | null; lang?: Lang } = {}): Promise<TriageResult> {
   const history = opts.history ?? [];
   // 1. the gate sees the new message and the recent conversation: a red flag mentioned earlier still counts
   let emergency = checkRedFlags([...history.slice(-4), text].join(" . "));
   const rules = matchNeeds(text);
   let llm: LlmExtraction | null = null;
   if (opts.llm && !emergency) {
-    try { llm = validateExtraction(await opts.llm(text, history)); } catch { llm = null; }
+    try { llm = validateExtraction(await opts.llm(text, history, opts.lang ?? "en")); } catch { llm = null; }
   }
   // 2. the gate runs again on whatever the model produced; the model can only escalate
   if (llm && !emergency) emergency = checkRedFlags([llm.summary ?? "", ...llm.symptoms].join(" . "));

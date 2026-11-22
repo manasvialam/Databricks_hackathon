@@ -1,13 +1,9 @@
 "use client";
 import { AlertTriangle, Clock, ExternalLink, Navigation, Phone, ShieldCheck, Volume2 } from "lucide-react";
 import type { ResultDto } from "@/lib/recommend";
-import { SERVICE_BY_ID } from "@/lib/services";
-import { t, type Lang } from "@/lib/i18n";
+import { fieldLabel, levelLabel, say, svcLabel, t, typeLabel, type Lang } from "@/lib/i18n";
 
-export const svcLabel = (id: string, lang: Lang) => {
-  const s = SERVICE_BY_ID[id];
-  return s ? (lang === "hi" ? s.hi : s.en) : id;
-};
+export { svcLabel };
 
 export function sureLevel(r: ResultDto): "high" | "mid" | "low" {
   if (!r.solid) return "low";
@@ -65,14 +61,14 @@ export function Slip({ r, scale, lang, services, onWhy, onSpeak }: {
   const quote = ev?.snippets[0];
   const src = ev?.sources[0];
   const svc = svcLabel(services[0]?.id ?? "", lang);
-  const place = [r.type, r.city ?? r.district, r.state].filter(Boolean).join(" · ");
+  const where = [r.city ?? r.district, r.state].filter(Boolean).join(" · ");     // place names exist only in English
   const phone = r.phones[0];
   const dirUrl = `https://www.google.com/maps/dir/?api=1&destination=${r.lat},${r.lon}`;
   return (
     <article className="panel" aria-labelledby={`n-${r.id}`}>
       <Chips r={r} lang={lang} />
-      <h2 className="slip-name" id={`n-${r.id}`}>{r.name}</h2>
-      <p className="slip-sub">{place}</p>
+      <h2 className="slip-name" id={`n-${r.id}`} lang="en">{r.name}</h2>
+      <p className="slip-sub">{r.type && <>{typeLabel(r.type, lang)}{where && " · "}</>}<span lang="en">{where}</span></p>
 
       <div className="nums">
         <span className="num">{r.distanceKm}<small>{t(lang, "km")}</small></span>
@@ -97,17 +93,18 @@ export function Slip({ r, scale, lang, services, onWhy, onSpeak }: {
       {(quote || (ev?.notes.length ?? 0) > 0) && (
         <div className="section">
           <h3>{t(lang, "evidenceFrom")}: {svcLabel(ev.service, lang)}</h3>
+          {/* the quote is the facility's own text, cited verbatim, so it stays in the language it was written in */}
           {quote
-            ? <blockquote className="quote">“{quote.text.length > 300 ? quote.text.slice(0, 297) + "…" : quote.text}”</blockquote>
-            : <blockquote className="quote">{ev.notes.slice(0, 2).join(" ")}</blockquote>}
+            ? <blockquote className="quote" lang="en">“{quote.text.length > 300 ? quote.text.slice(0, 297) + "…" : quote.text}”</blockquote>
+            : <blockquote className="quote" lang="en">{ev.notes.slice(0, 2).join(" ")}</blockquote>}
           <p className="src">
-            {ev.level}{quote ? ` · ${quote.field}` : ""}
-            {src && <> · {t(lang, "source")}: <a className="muted-link src-link" href={src.url} target="_blank" rel="noopener noreferrer">{host(src.url)}<ExternalLink size={13} style={{ marginLeft: 3, verticalAlign: -1 }} aria-hidden /></a>{!src.namesFacility && " (page may not name this hospital)"}</>}
+            {levelLabel(ev.level, lang)}{quote ? ` · ${fieldLabel(quote.field, lang)}` : ""}
+            {src && <> · {t(lang, "source")}: <a className="muted-link src-link" href={src.url} target="_blank" rel="noopener noreferrer" lang="en">{host(src.url)}<ExternalLink size={13} style={{ marginLeft: 3, verticalAlign: -1 }} aria-hidden /></a>{!src.namesFacility && ` (${t(lang, "srcNotNamed")})`}</>}
           </p>
         </div>
       )}
 
-      {r.warnings.map((w) => <p key={w} className="caution"><AlertTriangle size={20} aria-hidden /><span>{w}</span></p>)}
+      {r.warnings.map((w) => <p key={w.text} className="caution"><AlertTriangle size={20} aria-hidden /><span>{say(w, lang)}</span></p>)}
 
       <div className="section">
         <h3>{t(lang, "showAtDoor")}</h3>

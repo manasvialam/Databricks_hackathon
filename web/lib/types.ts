@@ -1,5 +1,6 @@
 // Shapes of the records in data/facilities.snapshot.json (written by scripts/export_snapshot.py).
 // Keys are short on purpose: the snapshot is 18 MB raw.
+import type { MsgKey, Vars } from "./i18n";
 
 export type ServiceId =
   | "dialysis" | "c_section" | "obstetrics" | "nicu" | "icu" | "cardiac_surgery" | "cath_lab" | "mri"
@@ -95,7 +96,11 @@ export interface Preferences {
 
 export interface TrafficEta { minutes: number; freeFlowMinutes: number | null; live: boolean; congestion: number }
 
-export interface Contribution { label: string; delta: number; detail?: string }
+/**
+ * One named signal in "How we decided". `label`/`detail` are English; `k`/`v` and `dk`/`dv` are the message keys the
+ * interface translates (see lib/i18n). A detail without `dk` exists only in English.
+ */
+export interface Contribution { label: string; delta: number; detail?: string; k?: MsgKey; v?: Vars; dk?: MsgKey; dv?: Vars }
 
 export interface RankedFacility {
   facility: Facility;

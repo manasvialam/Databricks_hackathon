@@ -7,6 +7,7 @@ import { snapshot } from "./snapshot";
 import { getEtas, type EtaResult } from "./traffic";
 import { haversineKm } from "./geo";
 import { reverse, lkey } from "./geocoder";
+import { dataMsg, msg, type Msg, type MsgKey } from "./i18n";
 
 export interface RecommendRequest {
   services: ServiceId[];
@@ -27,18 +28,18 @@ export interface ResultDto {
   lat: number; lon: number; distanceKm: number; etaMinutes: number; etaLow: number; etaHigh: number; congestion: number; liveTraffic: boolean;
   pBest: number; pService: number; solid: boolean; open24h: boolean;
   trust: { facility: number | null; location: string | null; locationPrecision: string | null };
-  evidence: EvidenceDto[]; why: { baseline: string; positive: Contribution[]; negative: Contribution[] };
-  registry: RegistryDto | null; warnings: string[]; phones: string[]; website: string | null;
+  evidence: EvidenceDto[]; why: { baseline: Contribution; positive: Contribution[]; negative: Contribution[] };
+  registry: RegistryDto | null; warnings: Msg[]; phones: string[]; website: string | null;
   tags: string[];
 }
 export interface RecommendResponse {
   urgency: Urgency; services: { id: ServiceId; label: string }[];
   location: { lat: number; lon: number; label: string | null };
-  confidence: "clear" | "several_similar" | "none_reliable"; notes: string[];
+  confidence: "clear" | "several_similar" | "none_reliable"; notes: Msg[];
   radiusKm: number; widenedFrom: number | null; candidatesConsidered: number;
   results: ResultDto[]; picks: Record<"best" | "fastest" | "mostTrusted" | "bestValue" | "mostComfortable", string | null>;
-  traffic: { live: boolean; provider: string | null; note: string };
-  coverage: { message: string | null; context: string[]; district: string | null; state: string | null };
+  traffic: { live: boolean; provider: string | null; note: Msg };
+  coverage: { message: string | null; context: Msg[]; district: string | null; state: string | null };
   label: string; asOf: string | null;
 }
 
@@ -46,16 +47,18 @@ const RADII = [25, 50, 100, 200];
 const SHORTLIST = 15;
 const POSITIVE_TAIL = /^(Location verified|A matching place exists)/;
 
-export function warningsFor(f: Facility, urgency: Urgency): string[] {
-  const w: string[] = [];
-  if ((f.ms ?? 0) >= 2) w.push("This record may mix information from several facilities, so confirm details by phone before you travel.");
-  if ((f.ms ?? 0) >= 2 && f.cl.some((c) => c.u.some((u) => u.n))) w.push("Some of the sources may describe a different branch with a similar name.");
-  if (f.lt === "approximate_pin" || f.lt === "approximate_district" || f.lt === "unverified") w.push("The map position is approximate. Ask for the exact address when you call.");
-  if (f.rg?.t === "possible") w.push("Possibly listed in the government registry. Confirm by phone.");
-  if (urgency === "emergency" && !f.h24) w.push("Not listed as open 24 hours.");
-  for (const r of f.rs) if (r.k === "contact" && /may belong to another|may combine/i.test(r.t)) { w.push("The phone numbers may belong to another facility. Check before relying on them."); break; }
-  for (const r of f.rs) if (r.k === "loc" && !POSITIVE_TAIL.test(r.t) && /probably wrong|differs from/i.test(r.t)) { w.push(r.t); break; }
-  return [...new Set(w)].slice(0, 4);
+export function warningsFor(f: Facility, urgency: Urgency): Msg[] {
+  const w: Msg[] = [];
+  if ((f.ms ?? 0) >= 2) w.push(msg("warnMerged"));
+  if ((f.ms ?? 0) >= 2 && f.cl.some((c) => c.u.some((u) => u.n))) w.push(msg("warnBranch"));
+  if (f.lt === "approximate_pin" || f.lt === "approximate_district" || f.lt === "unverified") w.push(msg("warnApproxLocation"));
+  if (f.rg?.t === "possible") w.push(msg("warnRegistryPossible"));
+  if (urgency === "emergency" && !f.h24) w.push(msg("warnNot24h"));
+  for (const r of f.rs) if (r.k === "contact" && /may belong to another|may combine/i.test(r.t)) { w.push(msg("warnPhones")); break; }
+  // the data's own sentence (English) is kept for English; other languages get the generic caution
+  for (const r of f.rs) if (r.k === "loc" && !POSITIVE_TAIL.test(r.t) && /probably wrong|differs from/i.test(r.t)) { w.push(dataMsg("warnLocationConflict", r.t)); break; }
+  const seen = new Set<string>();
+  return w.filter((m) => !seen.has(m.text) && !!seen.add(m.text)).slice(0, 4);
 }
 
 function evidenceFor(f: Facility, r: RankedFacility, services: ServiceId[]): EvidenceDto[] {
@@ -70,22 +73,23 @@ function evidenceFor(f: Facility, r: RankedFacility, services: ServiceId[]): Evi
   });
 }
 
+const BASELINE_KEYS = new Set<MsgKey>(["whyStrong", "whyModerate", "whyInferred", "whyWeak", "whyContradicted", "whyNone"]);
 function whyFor(r: RankedFacility, primary: string): ResultDto["why"] {
   const terms = r.contributions[primary] ?? [];
-  const baseline = terms.find((t) => /evidence in the facility|No evidence found/.test(t.label))?.label ?? "Evidence";
-  const rest = terms.filter((t) => t.label !== baseline);
+  const baseline = terms.find((t) => t.k && BASELINE_KEYS.has(t.k)) ?? { label: "No evidence found", delta: 0, k: "whyNone" as MsgKey };
+  const rest = terms.filter((t) => t !== baseline);
   return { baseline, positive: rest.filter((t) => t.delta > 0).slice(0, 3), negative: rest.filter((t) => t.delta < 0).slice(0, 3) };
 }
 
-function districtContext(services: ServiceId[], d: DistrictInfo | undefined): string[] {
+function districtContext(services: ServiceId[], d: DistrictInfo | undefined): Msg[] {
   if (!d) return [];
-  const n = d.nfhs, out: string[] = [];
+  const n = d.nfhs, out: Msg[] = [];
   const has = (...s: ServiceId[]) => services.some((x) => s.includes(x));
-  if (has("obstetrics", "c_section", "nicu") && n.inst_birth != null) out.push(`In ${d.name}, about ${Math.round(n.inst_birth)}% of births take place in a health facility (NFHS-5 survey, whole district).`);
-  if (has("c_section") && n.csection != null) out.push(`About ${Math.round(n.csection)}% of births in this district are by caesarean.`);
-  if (has("dialysis", "cath_lab", "cardiac_surgery") && n.high_bp_women != null) out.push(`About ${Math.round(n.high_bp_women)}% of women in ${d.name} have raised blood pressure (NFHS-5).`);
-  if (has("oncology", "linear_accelerator") && n.tobacco_men != null) out.push(`About ${Math.round(n.tobacco_men)}% of men in ${d.name} use tobacco (NFHS-5).`);
-  if (n.insurance != null) out.push(`About ${Math.round(n.insurance)}% of households in this district have a member covered by health insurance.`);
+  if (has("obstetrics", "c_section", "nicu") && n.inst_birth != null) out.push(msg("ctxBirths", { district: d.name, pct: Math.round(n.inst_birth) }));
+  if (has("c_section") && n.csection != null) out.push(msg("ctxCsection", { pct: Math.round(n.csection) }));
+  if (has("dialysis", "cath_lab", "cardiac_surgery") && n.high_bp_women != null) out.push(msg("ctxBp", { district: d.name, pct: Math.round(n.high_bp_women) }));
+  if (has("oncology", "linear_accelerator") && n.tobacco_men != null) out.push(msg("ctxTobacco", { district: d.name, pct: Math.round(n.tobacco_men) }));
+  if (n.insurance != null) out.push(msg("ctxInsurance", { pct: Math.round(n.insurance) }));
   return out.slice(0, 3);
 }
 
@@ -144,9 +148,9 @@ export async function recommend(req: RecommendRequest, deps: { traffic?: typeof 
   const dKey = rv?.state ? `${rv.state}|${lkey(rv.district)}` : null;
   const district = dKey ? snap.districts[dKey] : undefined;
   const notes = [...result.notes];
-  if (widenedFrom) notes.push(`Nothing suitable within ${widenedFrom} km, so the search was widened to ${radius} km.`);
-  if (results.some((x) => !x.solid) && results.some((x) => x.solid)) notes.push("Options marked 'weaker evidence' are listed only because nothing stronger was found close by.");
-  if (results.length && results.every((x) => x.warnings.length)) notes.push("Every option has a caution. Read it before you travel.");
+  if (widenedFrom) notes.push(msg("noteWidened", { from: widenedFrom, to: radius }));
+  if (results.some((x) => !x.solid) && results.some((x) => x.solid)) notes.push(msg("noteWeakListed"));
+  if (results.length && results.every((x) => x.warnings.length)) notes.push(msg("noteAllCaution"));
 
   return {
     urgency: req.urgency, services: req.services.map((id) => ({ id, label: SERVICE_BY_ID[id].en })),
@@ -156,7 +160,7 @@ export async function recommend(req: RecommendRequest, deps: { traffic?: typeof 
       best: result.picks.best?.facility.id ?? null, fastest: result.picks.fastest?.facility.id ?? null, mostTrusted: result.picks.mostTrusted?.facility.id ?? null,
       bestValue: result.picks.bestValue?.facility.id ?? null, mostComfortable: result.picks.mostComfortable?.facility.id ?? null,
     },
-    traffic: { live: eta.live, provider: eta.provider, note: eta.note },
+    traffic: { live: eta.live, provider: eta.provider, note: eta.noteKey ? msg(eta.noteKey) : { k: "trafficNoteEst", text: eta.note } },
     coverage: { message: district?.msg ?? null, context: districtContext(req.services, district), district: district?.name ?? rv?.district ?? null, state: rv?.state ?? null },
     label: "Evidence-weighted estimate, not a guarantee. Always confirm by phone before you travel.", asOf: snap.meta.built,
   };

@@ -5,7 +5,8 @@ import { Minus, Phone, Plus, X } from "lucide-react";
 import type { ResultDto } from "@/lib/recommend";
 import type { RedFlagResult } from "@/lib/triage/redflags";
 import type { Preferences } from "@/lib/types";
-import { t, type Lang } from "@/lib/i18n";
+import { emergencyText, say, t, termText, type Lang, type Msg } from "@/lib/i18n";
+import type { Contribution } from "@/lib/types";
 
 export type CardAnswer = "yes" | "no" | "unknown";
 
@@ -31,7 +32,12 @@ function Sheet({ title, onClose, lang, children }: { title: string; onClose: () 
   );
 }
 
-export function WhySheet({ r, lang, onClose, trafficNote }: { r: ResultDto; lang: Lang; onClose: () => void; trafficNote: string }) {
+function Term({ c, lang }: { c: Contribution; lang: Lang }) {
+  const { label, detail } = termText(c, lang);
+  return <span>{label}{detail ? `. ${detail}` : ""}</span>;
+}
+
+export function WhySheet({ r, lang, onClose, trafficNote }: { r: ResultDto; lang: Lang; onClose: () => void; trafficNote: Msg }) {
   return (
     <Sheet title={t(lang, "why")} onClose={onClose} lang={lang}>
       <p>{t(lang, "whyIntro")}</p>
@@ -42,18 +48,18 @@ export function WhySheet({ r, lang, onClose, trafficNote }: { r: ResultDto; lang
       <div className="section">
         <h3>{t(lang, "positives")}</h3>
         <ul className="why-list">
-          <li><Plus size={16} aria-hidden /><span>{r.why.baseline}</span></li>
-          {r.why.positive.map((p) => <li key={p.label}><Plus size={16} aria-hidden /><span>{p.label}{p.detail ? `. ${p.detail}` : ""}</span></li>)}
+          <li><Plus size={16} aria-hidden /><Term c={r.why.baseline} lang={lang} /></li>
+          {r.why.positive.map((p) => <li key={p.label}><Plus size={16} aria-hidden /><Term c={p} lang={lang} /></li>)}
         </ul>
       </div>
       {r.why.negative.length > 0 && (
         <div className="section">
           <h3>{t(lang, "negatives")}</h3>
-          <ul className="why-list">{r.why.negative.map((p) => <li key={p.label}><Minus size={16} aria-hidden /><span>{p.label}{p.detail ? `. ${p.detail}` : ""}</span></li>)}</ul>
+          <ul className="why-list">{r.why.negative.map((p) => <li key={p.label}><Minus size={16} aria-hidden /><Term c={p} lang={lang} /></li>)}</ul>
         </div>
       )}
       <div className="section">
-        <p className="small">{trafficNote}</p>
+        <p className="small">{say(trafficNote, lang)}</p>
         {r.registry && <p className="small" style={{ marginTop: 8 }}>{t(lang, "registryNote")}</p>}
         <p className="small" style={{ marginTop: 8 }}>{t(lang, "estimate")}</p>
         <p className="small" style={{ marginTop: 8 }}>{t(lang, "notAffiliated")}</p>
@@ -103,12 +109,17 @@ export function EmergencyCard({ gate, lang, online }: { gate: RedFlagResult; lan
         <a href="tel:112"><Phone size={30} aria-hidden /><div>{t(lang, "callNow", { n: 112 })}<span>{t(lang, "emergencyAll")}</span></div></a>
         {helpline && <a href="tel:14416"><Phone size={30} aria-hidden /><div>{t(lang, "callNow", { n: 14416 })}<span>{t(lang, "teleManas")}</span></div></a>}
       </div>
-      {cats.map((c) => (
-        <div key={c.id} lang="en" style={{ marginTop: 16 }}>
-          <p style={{ fontSize: 18, marginTop: 0 }}><b>{c.label}.</b> {c.now}</p>
-          {c.whileWaiting && <p className="small" style={{ marginTop: 6 }}>{t(lang, "whileWaiting")}: {c.whileWaiting}</p>}
-        </div>
-      ))}
+      {cats.map((c) => {
+        // the gate's own text is English; a translation replaces it whole, so a card never mixes two languages
+        const tr = emergencyText(c.id, lang);
+        const text = tr ?? { label: c.label, now: c.now, wait: c.whileWaiting };
+        return (
+          <div key={c.id} lang={tr ? lang : "en"} style={{ marginTop: 16 }}>
+            <p style={{ fontSize: 18, marginTop: 0 }}><b>{text.label}.</b> {text.now}</p>
+            {text.wait && <p className="small" style={{ marginTop: 6 }}><span lang={lang}>{t(lang, "whileWaiting")}:</span> {text.wait}</p>}
+          </div>
+        );
+      })}
       {!online && <p className="small" style={{ marginTop: 14 }}>{t(lang, "emergencyOffline")}</p>}
     </section>
   );
