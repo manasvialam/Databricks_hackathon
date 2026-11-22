@@ -137,6 +137,7 @@ export const en = {
   voiceSample: "Hello. I will read the results to you.",
   voiceTip: "For a more natural voice, use Microsoft Edge, or install an enhanced voice for this language in your phone's settings.",
   followPh: "Add more, or ask something else",
+  chatAsk: "What symptoms or health issue are you looking for care for? You can also ask for a hospital or a clinic.",
   confirmQ: "Is this where you are?",
   confirmYes: "Yes, that is right",
   confirmNo: "No, change it",

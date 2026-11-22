@@ -25,7 +25,7 @@ import { specLabel } from "@/lib/specialty";
 
 interface Loc { lat: number; lon: number; label: string | null }
 interface Candidate { label: string; state: string; district: string; lat: number; lon: number }
-type View = "idle" | "loading" | "result" | "pickcare" | "needplace" | "error";
+type View = "idle" | "loading" | "result" | "pickcare" | "needplace" | "error" | "chat";
 
 async function api<T>(url: string, body?: unknown): Promise<T> {
   const res = await fetch(url, body === undefined ? { cache: "no-store" } : { method: "POST", cache: "no-store", headers: { "content-type": "application/json" }, body: JSON.stringify(body) });
@@ -257,7 +257,7 @@ export function App() {
     if (cur && !g) setThinking(true); else { setRec(null); setView("loading"); }
     try {
       const r = await api<{
-        triage: { emergency: RedFlagResult | null; urgency: Urgency; services: ServiceId[]; understood: boolean; followUps: string[]; note: string | null; need: string | null; specialties?: string[] };
+        triage: { emergency: RedFlagResult | null; urgency: Urgency; services: ServiceId[]; understood: boolean; followUps: string[]; note: string | null; need: string | null; specialties?: string[]; chat?: boolean };
         location: { lat: number; lon: number; matched: string } | null;
       }>("/api/triage", { message: msg, history: history.current.slice(0, -1), lang });
       const tr = r.triage;
@@ -270,6 +270,14 @@ export function App() {
       const urgency: Urgency = tr.emergency ? "emergency" : tr.urgency;
       if (tr.emergency && !g && !stayNoted.current) { stayNoted.current = true; addAssistant(t(lang, "emergencyStays"), true); }   // an emergency mentioned earlier stays on screen; say so instead of staying silent
       const follow = tr.emergency || asked.current >= 2 ? null : tr.followUps[0] ?? null;
+
+      // Small talk (hello, thanks): no symptom and no request for care, so answer it and ask what is wrong; show no hospitals.
+      if (tr.chat && !tr.emergency && !g) {
+        setThinking(false);
+        addAssistant(t(lang, "chatAsk"));
+        if (!cur) setView("chat");
+        return;
+      }
 
       // Keep the hospital unless what was added needs a kind of care it does not have.
       if (cur && !tr.emergency && !g) {

@@ -1,0 +1,28 @@
+/**
+ * Greetings, thanks and other small talk in the five languages. A message made only of these words is not a request for care, so the app
+ * answers it and asks what is wrong instead of showing hospitals. It never matches a message that also names a symptom or a service.
+ */
+const WORDS = new Set([
+  // English and Hinglish
+  "hello", "hi", "hii", "hiii", "hey", "heyy", "helo", "hallo", "yo", "good", "morning", "afternoon", "evening", "night", "there", "namaste", "namaskar", "namaskaram", "vanakkam", "ok", "okay", "k",
+  "thanks", "thank", "you", "thankyou", "thx", "ty", "bye", "goodbye", "cheers", "please", "test", "testing", "hmm", "nevermind", "never", "mind", "great", "cool", "nice",
+  "shukriya", "dhanyavad", "nandri", "dhanyavaad", "ji", "sir", "madam", "bhai", "anna", "all", "right", "alright", "welcome", "how", "are", "doing",
+  // Hindi
+  "हैलो", "हेलो", "हाय", "नमस्ते", "नमस्कार", "धन्यवाद", "शुक्रिया", "ठीक", "है", "अच्छा", "ओके", "जी", "सुप्रभात", "शुभ", "रात्रि", "अलविदा",
+  // Tamil
+  "வணக்கம்", "ஹலோ", "ஹாய்", "நன்றி", "சரி", "ஓகே", "காலை", "மாலை", "இரவு", "வருகிறேன்",
+  // Telugu
+  "నమస్కారం", "నమస్తే", "హలో", "హాయ్", "ధన్యవాదాలు", "సరే", "ఓకే", "శుభోదయం", "శుభ", "రాత్రి",
+  // Malayalam
+  "നമസ്കാരം", "ഹലോ", "ഹായ്", "നന്ദി", "ശരി", "ഓക്കേ", "സുപ്രഭാതം", "ശുഭ", "രാത്രി",
+]);
+
+export function isSmallTalk(text: string): boolean {
+  const tokens = (text ?? "").toLowerCase().normalize("NFC").replace(/[^\p{L}\p{M}\p{N}\s]/gu, " ").split(/\s+/).filter(Boolean);
+  if (!tokens.length || tokens.length > 6) return false;
+  return tokens.every((w) => WORDS.has(w));
+}
+
+/** Words that mean the person is asking for a place of care. Such a message is never small talk, whatever the model thinks. */
+const PLACE_OF_CARE = /hospital|clinic|doctor|physician|dispensary|nursing home|health cent|medical cent|pharmacy|chemist|ambulance|emergency room|phc|अस्पताल|क्लिनिक|डॉक्टर|दवाखाना|अस्पताल|மருத்துவமனை|கிளினிக்|மருத்துவர்|டாக்டர்|ఆసుపత్రి|క్లినిక్|డాక్టర్|వైద్యుడు|ആശുപത്രി|ക്ലിനിക്|ഡോക്ടർ/iu;
+export const asksForPlaceOfCare = (text: string) => PLACE_OF_CARE.test((text ?? "").normalize("NFC"));

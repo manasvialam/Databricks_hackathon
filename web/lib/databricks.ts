@@ -49,6 +49,7 @@ Return ONLY a JSON object with these keys:
 - symptoms: up to 8 short strings, in the writer's meaning
 - urgency: "emergency", "urgent" or "routine". When unsure choose the higher level.
 - services: the care that is needed, most important first, chosen ONLY from: ${SERVICE_IDS.join(", ")}
+- careRequest: true when the person describes a symptom or health problem, or asks for a hospital, clinic, doctor, test or treatment; false for a greeting, thanks, a question about the app or any other chat
 - specialties: up to 3 kinds of doctor or department that suit the need, most suitable first, chosen ONLY from: ${SPECIALTIES.map((s) => s.id).join(", ")} (for example knee pain: bones; skin rash: skin; fever with no clear cause: general)
 - possibleConditions: up to 3 objects {name, why}. These are patterns that can be seen with the symptoms, never a diagnosis.
 - followUps: up to 2 short questions, only if the answer would change where to go. Write them in ${LANGS.find((l) => l.id === lang)?.label ?? "English"}, in plain words.
