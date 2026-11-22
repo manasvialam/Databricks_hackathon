@@ -7,7 +7,7 @@
 web
 
 ## Stack
-Next.js (App Router, TypeScript) in `web/`. Deployed twice from the same code: on Vercel for the public link and as a Databricks App so the submission runs on Databricks. Databricks supplies the data, the model endpoint and evaluation. The interface uses the Glisse library (Apple's Liquid Glass for the web). The challenge requires the core to run on Databricks Free Edition (no GPUs); anything heavier is an optional switch.
+Next.js (App Router, TypeScript) in `web/`. Deployed twice from the same code: on Vercel for the public link and as a Databricks App so the submission runs on Databricks. Databricks supplies the data, the model endpoint and evaluation. The interface is plain React and CSS (no UI library), styled as a calm, Apple-like phone app. The challenge requires the core to run on Databricks Free Edition (no GPUs); anything heavier is an optional switch.
 
 ## Users
 Primary: the patient themselves, on their own phone, often low-literacy, possibly unwell or frightened, usually outdoors or in transit, with patchy mobile data. They are looking for care for themselves or someone with them, and need to know where to go, how long it takes, and how sure we are.
@@ -24,7 +24,10 @@ Most facility finders return a confident list from unverified directory data. Th
 Used on a phone, often one-handed, in bright light, on slow or intermittent data, sometimes in an emergency. Spoken input and spoken answers matter. Location comes from the phone, with typed place or PIN code as a fallback. Live traffic changes the ranking ("not the nearest if it is jammed"). A person can say whether they hold an Ayushman Bharat (PM-JAY) card, which changes how cost is weighed. Facility data covers 9,988 facilities in India with uneven quality (many records are merged or have approximate locations).
 
 ## Capabilities and Constraints
-- Chat with a voice mode (browser speech recognition and speech synthesis; server speech only as an optional extra).
+- Home is voice first: a large central mic orb is the main control, with a roomy type bar and a quick-needs row (Emergency, Pregnancy, Dialysis, Heart, Cancer, ICU). Location is a compact header like Uber Eats or Instacart that opens a picker (search a town, PIN or full address, current location, suggested and recent places). Back, swipe-back and an in-app back arrow behave like a native app.
+- Chat with a voice mode (browser speech recognition and speech synthesis; server speech only as an optional extra), plus a read-along that reads any screen aloud with word highlighting.
+- Results are hospitals first, with services as tags; when a need maps to no service we hold evidence for (leg pain, fever) the nearest hospital is shown as a full card and the app says plainly that the list is nearest first. Do not group results by service type.
+- A Databricks-hosted language model (optional) reads the person's own words in any of the five languages to decide the care needed, scores each shortlisted hospital's fit from its own records (a capped nudge that can never lift weak or contradicted evidence), and translates server messages that have no reviewed translation. Without it the app falls back to rules and evidence-only ranking. The emergency gate never depends on it.
 - Triage into urgency (emergency, urgent, routine) and the type of care needed, plus "possible conditions to discuss with a clinician". Never a definitive diagnosis, never treatment or dosing advice.
 - A deterministic emergency gate that runs without any model and without a network; it can only escalate. Emergency numbers: 108 (ambulance), 112 (emergency), Tele-MANAS 14416 for thoughts of self-harm.
 - Languages for the first release: English, Hindi, Tamil, Telugu, Malayalam. All interface text exists in all five (draft translations in `web/lib/i18n/`), and every string, including all emergency wording, needs review by a native speaker and a clinician before launch. The emergency gate covers English and Hindi, plus draft phrase stems for Tamil, Telugu and Malayalam (`web/lib/triage/redflags.indic.ts`) that have not been reviewed by native speakers or a clinician and are not complete coverage.
@@ -34,7 +37,7 @@ Used on a phone, often one-handed, in bright light, on slow or intermittent data
 - Open decisions: product name; traffic provider; whether the registry list may be used beyond validation; Whisper fallback; the source and terms of the registry list.
 
 ## Brand Commitments
-Binding choices made by the user: the interface uses the Glisse library (Apple Liquid Glass for the web), and it must not look vibecoded. No name, logo or voice has been chosen. The government emblem and scheme logos are off limits.
+Binding choices made by the user: a very clean, smooth, Apple-like phone UI in cool tones (no green or rainbow colours, no decorative gradients or glow, no sparkle icons or phrases that read as AI-generated), and it must not look vibecoded. Reference images the user supplied: a frosted-glass mic orb, a Maps-style search bar, a food-delivery category row, and compact health apps. No name, logo or voice has been chosen. The government emblem and scheme logos are off limits.
 
 ## Evidence on Hand
 - `facilities_final.parquet`: 9,989 facilities with claims, quoted snippets, source links and trust scores (`web/data/facilities.snapshot.json` is the slim copy the app serves).

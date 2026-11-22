@@ -49,13 +49,13 @@ Large files use Git LFS (`*.csv`, `*.parquet`). Run `git lfs pull` after cloning
 
 ## 6. Design
 
-**Superseded (see section 12):** the green highway-board look below was replaced by a calm cool-tone UI. `DESIGN.md` and `.impeccable/` still describe the old one and need rewriting.
+**Superseded (see section 13):** the green highway-board look below was replaced by a calm cool-tone UI. `DESIGN.md` and `.impeccable/` still describe the old one and need rewriting.
 
 Old direction, "the referral slip": one answer you can show at the door. World: Indian highway wayfinding boards: board green `#0B5D3B` ground, white sign panels, caution yellow for doubt, facility blue for registry marks, emergency red only for emergencies. Glass only on floating chrome (top strip, composer, mic). Signature: the road bar (free-flow minutes solid, traffic delay hatched yellow, likely range bracketed). Full rules in `DESIGN.md`; direction contract in `.impeccable/surfaces/web-app-page-tsx.md`. The design detector reports zero findings. The finish review was source-only.
 
 ## 7. Status
 
-Done and tested: ranking engine, triage and emergency gate (English, Hindi, Hinglish; draft Tamil/Telugu/Malayalam), geocoder, traffic fallback, registry matching, snapshot export, API, full UI in five languages (screen text, service keywords, native-script place names, read-aloud voice choice), 230 passing tests, production build, design docs.
+Done and tested: ranking engine, triage and emergency gate (English, Hindi, Hinglish; draft Tamil/Telugu/Malayalam), geocoder, traffic fallback, registry matching, snapshot export, API, full UI in five languages (screen text, service keywords, native-script place names, read-aloud voice choice), 232 passing tests, production build, design docs.
 
 ## 8. What is not done (your to-do list)
 
@@ -99,10 +99,17 @@ The deployed app loads its facilities, districts and metadata from the Delta tab
 ## 13. UI redesign, hospital list and language-model features (2026-11-22)
 
 ### UI
-Calm, cool-tone, phone-first (Apple-like): blue-grey ground, white cards, slate ink, one muted slate-blue for actions, soft green only for the PM-JAY badge, amber only for doubt, red only for emergencies, no gradients or glow. Tokens and every component style are in `web/app/globals.css`. Home is a large "What's wrong?" box (mic and Find button inside it) plus a separate "Where are you?" card; the bottom search bar only appears on result screens. The result card shows badge, name, place, minutes and km, one confidence line, Call and Directions; "Why this hospital" (evidence quote, source, reasons, fine print) and "Before you go" fold out. The green PM-JAY badge opens a small card saying what was cross-checked. Glisse is no longer used (it can be removed from `package.json`).
+Calm, cool-tone, phone-first (Apple-like): blue-grey ground, white cards, slate ink, one muted slate-blue for actions, soft green only for the PM-JAY badge, amber only for doubt, red only for emergencies, no decorative gradients. Tokens and all component styles are in `web/app/globals.css`. Glisse is no longer used (remove it from `package.json`).
+- **Home** (`components/App.tsx`): "What's wrong?", then a large central mic orb (breathes when idle, ripples and shows the live transcript while listening) as the main control, a roomy type bar that grows with the text, a horizontal quick-needs row (Emergency, Pregnancy, Dialysis, Heart, Cancer, ICU), then the nearby hospital list. No bottom bar on home; the floating search bar appears only on result screens.
+- **Location** is a compact header (like Uber Eats): "Your location / Chennai 600073 v" top left, opening `LocSheet` (`components/Sheets.tsx`): search a town, PIN or full address, "Use current location", suggested places (`lib/places.ts`, three hard-coded addresses so the app works when device location is denied) and the last three places (localStorage `recentLocs`). Searching with no location opens the sheet and the search resumes after a place is chosen.
+- **Addresses**: `lib/geocoder.ts` `geocodeAddress()` resolves any address containing a 6-digit PIN through that PIN (India Post gives one point per PIN), refined to a post-office or locality in the address if one lies within 20 km; an unknown PIN falls back to the other address parts. Accurate to the PIN area, not the street, and the note says so. Tests in `tests/geocoder.test.ts`.
+- **Result card** (`components/Slip.tsx`): badge, name, place, minutes and km, one confidence line, Call and Directions; "Why this hospital" (evidence quote, source, reasons, fine print) and "Before you go" fold out. The green PM-JAY badge opens a small card saying what was cross-checked.
+- **Back navigation** (`lib/client/nav.ts`, used in `App.tsx`): screen, chosen hospital and open sheet are mirrored into browser history, so phone back, iOS swipe-back and the in-app back arrow walk through them; closing a sheet goes back instead of pushing. Tested in a headless phone-size browser only; real iOS and Android gestures untested.
 
-### Hospital list
-`lib/nearby.ts` `nearbyHospitals()`, returned as `hospitals` by `/api/nearby`; UI in `components/Hospitals.tsx` and `HospitalSheet` in `Sheets.tsx`. Hospitals and nursing homes only, nearest first (radius widens 10, 25, 50, 100 km until 12 are found), each tagged with the services that have solid evidence (same rule as the old service tiles). Hospitals with no confirmed service sort after. Shown after a place is set, and when a typed problem maps to no service.
+### Hospital list and needs that map to no service
+`lib/nearby.ts` `nearbyHospitals()`, returned as `hospitals` by `/api/nearby`; UI in `components/Hospitals.tsx`. Hospitals and nursing homes only, nearest first (radius widens 10, 25, 50, 100 km until 12 are found), each tagged with the services that have solid evidence; hospitals with no confirmed service sort after. Shown on home once a place is set, with filter chips.
+
+When what the person types maps to none of the 15 services (leg pain, fever), `view === "pickcare"` shows `HospitalCard` for the nearest hospital: PM-JAY badge, estimated minutes and km, service tags, Call and Directions, "Why this hospital" (`HospitalWhySheet`, says honestly the list is nearest first because the need matched no specific service) and "Before you go" ("Call first and ask: Can I be seen today for <what they typed>?"), then the other hospitals; tapping one swaps the featured card. Known weakness: with no relevance signal the nearest hospital can be unrelated (a pregnancy hospital for fever). The language-model fit scoring below is only wired into the specific-service search; wiring it into this list is the obvious next step once the endpoint is live.
 
 ### Language model (needs the Databricks person)
 One chat endpoint (`FM_ENDPOINT`, `app.yaml` uses `databricks-meta-llama-3-3-70b-instruct`) does three jobs; with no endpoint the app falls back to rules and evidence-only ranking. Details in `web/README.md`.
