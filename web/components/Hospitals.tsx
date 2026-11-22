@@ -8,6 +8,7 @@ import { MiniMap, placeLine, RegistryBadge } from "./Slip";
 import { useRoute } from "./RouteMap";
 import { TrafficStrip } from "./Traffic";
 import { Name } from "./Name";
+import { cleanNeed } from "@/lib/need";
 import { Tx } from "./Tx";
 
 const MAX_TAGS = 2;
@@ -64,8 +65,7 @@ export function HospitalCard({ h, lang, need, guidance, origin, onWhy, onDirecti
   const [door, setDoor] = useState(false);
   const route = useRoute(origin, h);
   // what to say at the desk: the model's short summary of the problem, without "I'm having" or a closing full stop, so the sentence reads on its own
-  const clean = need ? need.trim().replace(/^(?:i(?:'m|\s+am)?\s+)?(?:having|facing|suffering\s+from|getting|feeling|have|feel)\s+/i, "").replace(/[\s.!?]+$/, "") : "";
-  const shortNeed = clean ? (clean.length > 60 ? clean.slice(0, 57) + "…" : clean) : null;
+  const shortNeed = cleanNeed(need);
   // how well this hospital fits what was described: the model's score where there is one, otherwise whether its listed specialties matched
   const level: "high" | "mid" | "low" = h.fit != null ? (h.fit >= 0.7 ? "high" : h.fit >= 0.4 ? "mid" : "low") : h.matched.length ? "mid" : "low";
   const on = level === "high" ? 3 : level === "mid" ? 2 : 1;

@@ -6,6 +6,7 @@ import type { ResultDto } from "@/lib/recommend";
 import { svcLabel, t, type Lang } from "@/lib/i18n";
 import { specLabel } from "@/lib/specialty";
 import { Tx } from "./Tx";
+import { lcFirst } from "@/lib/need";
 import { RouteMap, useRoute } from "./RouteMap";
 import { TrafficStrip } from "./Traffic";
 
@@ -142,7 +143,7 @@ export function Slip({ r, lang, services, origin, onWhy, onDirections, onDoor }:
 
       <button type="button" className="door-card tap" onClick={onDoor}>
         <span className="door-ico"><Hand size={22} strokeWidth={2} aria-hidden /></span>
-        <span className="door-t">{t(lang, "showAtDoor")}<small>{t(lang, "sayLine", { service: svc })}</small></span>
+        <span className="door-t">{t(lang, "showAtDoor")}<small>{t(lang, "sayLine", { service: lang === "en" ? lcFirst(svc) : svc })}</small></span>
         <ChevronRight size={20} aria-hidden />
       </button>
 

@@ -1,4 +1,5 @@
 "use client";
+import { cleanNeed, isLatin, lcFirst } from "@/lib/need";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { BadgeCheck, Check, CircleCheck, Clock, ExternalLink, LocateFixed, MapPin, Minus, Navigation, Phone, Plus, Search, ShieldQuestion, Volume2, X } from "lucide-react";
 import type { ResultDto } from "@/lib/recommend";
@@ -88,14 +89,17 @@ function Term({ c, lang }: { c: Contribution; lang: Lang }) {
 const host = (u: string) => { try { return new URL(u).hostname.replace(/^www\./, ""); } catch { return u; } };
 
 /** Hold-up-to-the-desk view: the sentence to say, big and in English (what the staff read), the same in the person's language, and what to bring. */
-export function DoorSheet({ r, lang, serviceId, onClose, onListen }: { r: ResultDto; lang: Lang; serviceId: string; onClose: () => void; onListen?: () => void }) {
-  const need = svcLabel(serviceId, "en");
+export function DoorSheet({ r, lang, serviceId, need: said, onClose, onListen }: { r: ResultDto; lang: Lang; serviceId: string; need?: string | null; onClose: () => void; onListen?: () => void }) {
+  const svcEn = svcLabel(serviceId, "en");
+  const own = cleanNeed(said);                                    // what the person said, when they described a problem instead of tapping a tile
+  const sayEn = own && isLatin(own) ? t("en", "sayNeedLine", { need: own }) : t("en", "sayLine", { service: lcFirst(svcEn) });
   return (
     <Sheet title={t(lang, "showAtDoor")} onClose={onClose} lang={lang} onListen={onListen}>
       <div className="door-big">
         <small lang="en">{r.name}</small>
-        <p lang="en">{t("en", "sayLine", { service: need })}</p>
-        {lang !== "en" && <p className="door-own" lang={lang}>{t(lang, "sayLine", { service: svcLabel(serviceId, lang) })}</p>}
+        <p lang="en">{sayEn}</p>
+        {own && isLatin(own) && <p className="door-own" lang="en">{t("en", "sayLine", { service: lcFirst(svcEn) })}</p>}
+        {lang !== "en" && <p className="door-own" lang={lang}>{own ? t(lang, "sayNeedLine", { need: own }) : t(lang, "sayLine", { service: svcLabel(serviceId, lang) })}</p>}
       </div>
       <div className="block" style={{ marginTop: 20 }}>
         <h3 className="block-h">{t(lang, "carry")}</h3>

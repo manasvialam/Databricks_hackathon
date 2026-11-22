@@ -662,7 +662,7 @@ export function App() {
       {sheet === "map" && mapTarget && loc && <MapSheet origin={loc} dest={mapTarget} lang={lang} onClose={() => setSheet(null)} onListen={readSheet} />}
       {sheet === "lang" && <LangSheet lang={lang} onClose={() => setSheet(null)} onListen={readSheet} onPick={(l) => { chooseLang(l); setSheet(null); }} />}
       {sheet === "why" && picked && rec && <WhySheet r={picked} lang={lang} onClose={() => setSheet(null)} trafficNote={rec.traffic.note} context={rec.coverage.context} onListen={readSheet} />}
-      {sheet === "door" && picked && rec && <DoorSheet r={picked} lang={lang} serviceId={rec.services[0]?.id ?? ""} onClose={() => setSheet(null)} onListen={readSheet} />}
+      {sheet === "door" && picked && rec && <DoorSheet r={picked} lang={lang} serviceId={rec.services[0]?.id ?? ""} need={need.current} onClose={() => setSheet(null)} onListen={readSheet} />}
       {sheet === "prefs" && (
         <PrefSheet lang={lang} prefs={prefs} card={card} onClose={() => setSheet(null)} onListen={readSheet}
           onApply={(p, c) => { setPrefs(p); setCard(c); setPrefsTouched(true); setSheet(null); if (last.current && loc) void fetchRec(last.current.services, last.current.urgency, loc, p, c, true); }} />
