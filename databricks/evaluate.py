@@ -75,7 +75,7 @@ def eval_recommend():
         row = {"city": city, "service": svc, "urgency": urg, "expect": expect, "http": code, "seconds": round(secs, 2)}
         res = d.get("results", []) if code == 200 else []
         top = res[0] if res else None
-        row.update(n_results=len(res), confidence=d.get("confidence"), notes=" | ".join(d.get("notes", []))[:200])
+        row.update(n_results=len(res), confidence=d.get("confidence"), notes=" | ".join(n["text"] if isinstance(n, dict) else str(n) for n in d.get("notes", []))[:200])
         row["answered"] = bool(top)
         row["top_solid"] = bool(top and top["solid"])
         row["top_name"] = top["name"] if top else None
