@@ -167,7 +167,7 @@ export function PrefSheet({ lang, prefs, card, onApply, onClose, onListen }: {
             style={{ ["--fill" as string]: `${p[k] * 100}%` }} onChange={(e) => setP({ ...p, [k]: Number(e.target.value) })} />
         </div>
       ))}
-      <button type="button" className="btn btn-dark tap" style={{ width: "100%", marginTop: 28 }} onClick={() => onApply(p, c)}>{t(lang, "apply")}</button>
+      <button type="button" className="btn btn-primary tap" style={{ width: "100%", marginTop: 28 }} onClick={() => onApply(p, c)}>{t(lang, "apply")}</button>
     </Sheet>
   );
 }

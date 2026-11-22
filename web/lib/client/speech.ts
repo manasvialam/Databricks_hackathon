@@ -90,13 +90,31 @@ export function speak(text: string, lang: string): boolean {
   if (!voice && voices.length) return false;
   const synth = window.speechSynthesis;
   synth.cancel();
-  const parts = text.match(/[^.!?।]+[.!?।]?/g)?.map((s) => s.trim()).filter(Boolean) ?? [text];
+  const mine = ++gen;                                            // cancelling fires "interrupted" on the old sentences; only the newest speech counts
+  const parts = text.split(/(?<=[.!?।])\s+/).map((s) => s.trim()).filter(Boolean);      // split after sentence ends only, never inside 15.8
+  if (!parts.length) parts.push(text);
+  let left = parts.length;
+  const done = () => { if (mine === gen && --left <= 0) setTalking(false); };
   for (const p of parts) {
     const u = new SpeechSynthesisUtterance(p);
     u.lang = lang; u.rate = speechRate(voice);
     if (voice) u.voice = voice;
+    u.onstart = () => { if (mine === gen) setTalking(true); };
+    u.onboundary = pulse;
+    u.onend = done; u.onerror = done;
     synth.speak(u);
   }
+  setTalking(true);
   return true;
 }
-export const stopSpeaking = () => { if (canSpeak()) window.speechSynthesis.cancel(); };
+export const stopSpeaking = () => { gen++; if (canSpeak()) window.speechSynthesis.cancel(); setTalking(false); };
+
+// ---------- what the voice is doing, for the animated orb -----------------------------------------------------------
+let gen = 0, talking = false;
+const talkListeners = new Set<(on: boolean) => void>();
+function setTalking(on: boolean) { if (talking !== on) { talking = on; talkListeners.forEach((f) => f(on)); } }
+/** True while `speak()` is talking (the read-along reports its own state). */
+export const isTalking = () => talking;
+export const onTalking = (f: (on: boolean) => void) => { talkListeners.add(f); return () => { talkListeners.delete(f); }; };
+/** One tick per spoken word where the browser reports word boundaries; the orb pulses on each. */
+export const pulse = () => { if (typeof window !== "undefined") window.dispatchEvent(new Event("voice-pulse")); };

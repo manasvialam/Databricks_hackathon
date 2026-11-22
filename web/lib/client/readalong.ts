@@ -1,7 +1,7 @@
 "use client";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { speechLang, t, type Lang } from "@/lib/i18n";
-import { canSpeak, speechRate, voiceFor, voicesReady } from "./speech";
+import { canSpeak, speechRate, voiceFor, voicesReady, pulse } from "./speech";
 
 /**
  * Read-along: speaks the parts of the screen marked data-read, one after another, in the language each part is written in,
@@ -147,6 +147,7 @@ export class ReadAlong {
     const u = new SpeechSynthesisUtterance(seg.text);
     u.lang = seg.lang; u.rate = this.rate === 1 ? speechRate(voice) : this.rate; if (voice) u.voice = voice;
     u.onboundary = (e) => {
+      if (my === this.token) pulse();
       if (my !== this.token || !seg.words) return;
       const h = highlights(); if (!h || typeof Highlight === "undefined") return;
       const m = /^\S+/.exec(seg.text.slice(e.charIndex));

@@ -1,6 +1,9 @@
 import "server-only";
 import type { TrafficEta } from "./types";
 import { t, type MsgKey } from "./i18n";
+import { osrmTable, routingEnabled } from "./routing";
+import { areaFor, driveMinutes, istHour, timeFactor } from "./congestion";
+import { snapshot } from "./snapshot";
 
 /**
  * Travel time with live traffic, for a short list of candidates only.
@@ -124,7 +127,18 @@ export async function getEtas(
   } else if (need.length && fetchLive) {
     noteKey = "trafficNoteQuota";
   }
+  // no live provider answered: real road distance and free-flow time from OpenStreetMap, scaled by the time-of-day factor
+  const missing = dests.filter((d) => !etas[d.id]);
+  let road = false;
+  if (missing.length && routingEnabled()) {
+    const legs = await osrmTable(origin, missing.slice(0, 24));
+    if (legs) {
+      const area = areaFor(origin.lat, origin.lon, snapshot().index.within(origin.lat, origin.lon, 5).length), hour = istHour(now), f = timeFactor(area, hour);
+      missing.slice(0, 24).forEach((d, i) => { const l = legs[i]; if (l) { etas[d.id] = { minutes: driveMinutes(l.minutes, area, hour, l.km), freeFlowMinutes: driveMinutes(l.minutes, area, 3, l.km), live: false, congestion: f, roadKm: l.km }; road = true; } });
+    }
+  }
   for (const d of dests) if (!etas[d.id]) etas[d.id] = heuristicEta(d.straightKm, now);
+  if (road && !live) noteKey = "trafficNoteRoad";
   if (live && Object.values(etas).some((e) => !e.live)) noteKey = "trafficNoteMixed";
   return { etas, live, provider: live ? provider : null, note: t("en", noteKey), noteKey };
 }

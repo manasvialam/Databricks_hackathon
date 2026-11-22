@@ -33,6 +33,7 @@ export interface ResultDto {
   evidence: EvidenceDto[]; why: { baseline: Contribution; positive: Contribution[]; negative: Contribution[] };
   registry: RegistryDto | null; warnings: Msg[]; phones: string[]; website: string | null;
   tags: string[];
+  specialties: string[];
 }
 export interface RecommendResponse {
   urgency: Urgency; services: { id: ServiceId; label: string }[];
@@ -124,7 +125,10 @@ export async function recommend(req: RecommendRequest, deps: { traffic?: typeof 
 
   const max = req.maxResults ?? 5;
   const viableRanked = result.ranked.filter((x) => x.primaryPService >= W.minViable);
-  const top = [...viableRanked.filter((x) => x.solid), ...viableRanked.filter((x) => !x.solid)].slice(0, max);   // solid evidence first, weaker options after
+  const solidFirst = [...viableRanked.filter((x) => x.solid), ...viableRanked.filter((x) => !x.solid)];   // solid evidence first, weaker options after
+  // far options only pad the list when fewer than three good ones are close: a hospital 170 km away is noise next to three within 3 km
+  const nearList = solidFirst.filter((x) => (km[x.facility.id] ?? 0) <= RADII[0]);
+  const top = (nearList.filter((x) => x.solid).length >= 3 ? nearList : solidFirst).slice(0, max);
   const registryAsOf = snap.meta.registry_list_as_of;
   const results: ResultDto[] = top.map((r) => {
     const f = r.facility, rg = f.rg;
@@ -139,11 +143,11 @@ export async function recommend(req: RecommendRequest, deps: { traffic?: typeof 
     if (r.distanceKm === nearestKm) tags.push("closest");
     return {
       id: f.id, name: f.nm, type: f.ty, ownership: rg?.own ?? (f.op === "public" || f.op === "government" ? "government" : f.op), sizeBand: f.sz, city: f.ci, district: f.di, state: f.st,
-      lat: f.la, lon: f.lo, distanceKm: Math.round(r.distanceKm * 10) / 10, etaMinutes: Math.round(r.etaMinutes), etaLow: Math.round(r.etaLow), etaHigh: Math.round(r.etaHigh),
+      lat: f.la, lon: f.lo, distanceKm: Math.round((eta.etas[f.id]?.roadKm ?? r.distanceKm) * 10) / 10, etaMinutes: Math.round(r.etaMinutes), etaLow: Math.round(r.etaLow), etaHigh: Math.round(r.etaHigh),
       congestion: Math.round(r.congestion * 100) / 100, liveTraffic: r.live, pBest: Math.round(r.pBest * 100) / 100, pService: Math.round(r.primaryPService * 100) / 100, solid: r.solid, open24h: f.h24,
       trust: { facility: f.ft, location: f.lt, locationPrecision: f.lp }, evidence: evidenceFor(f, r, req.services), why: whyFor(r, primary),
       registry: registry && (registry.tier === "possible" || rg?.badge) ? registry : null,
-      warnings: warningsFor(f, req.urgency), phones: f.ph, website: f.ws, tags,
+      warnings: warningsFor(f, req.urgency), phones: f.ph, website: f.ws, tags, specialties: (f.sc ?? []).filter((x) => x !== "general").slice(0, 4),
     };
   });
 
@@ -151,7 +155,14 @@ export async function recommend(req: RecommendRequest, deps: { traffic?: typeof 
   const dKey = rv?.state ? `${rv.state}|${lkey(rv.district)}` : null;
   const district = dKey ? snap.districts[dKey] : undefined;
   const notes = [...result.notes];
-  if (widenedFrom) notes.push(msg("noteWidened", { from: widenedFrom, to: radius }));
+  // say what actually happened: the search only looks further when fewer than six good options exist nearby, so that is not "nothing nearby"
+  if (widenedFrom) {
+    const first = RADII[0];
+    const near = top.filter((x) => (km[x.facility.id] ?? 0) <= first).length, far = top.length - near;
+    if (far > 0) notes.push(near === 0 ? msg("noteWidened", { from: first, to: Math.round(Math.max(...top.map((x) => km[x.facility.id] ?? 0)) / 5) * 5 || radius })
+      : msg("noteFewNearby", { n: near, from: first }));
+    else if (near > 0 && near < max) notes.push(msg("noteNearOnly", { n: near, from: first }));
+  }
   if (results.some((x) => !x.solid) && results.some((x) => x.solid)) notes.push(msg("noteWeakListed"));
   if (results.length && results.every((x) => x.warnings.length)) notes.push(msg("noteAllCaution"));
   if (fits) notes.push(msg("noteModelUsed"));
@@ -159,7 +170,7 @@ export async function recommend(req: RecommendRequest, deps: { traffic?: typeof 
   return {
     urgency: req.urgency, services: req.services.map((id) => ({ id, label: SERVICE_BY_ID[id].en })),
     location: { lat: req.lat, lon: req.lon, label: req.locationLabel ?? null },
-    confidence: result.confidence, notes, radiusKm: radius, widenedFrom, candidatesConsidered: considered,
+    confidence: result.confidence, notes, radiusKm: RADII.find((r) => top.every((x) => (km[x.facility.id] ?? 0) <= r)) ?? radius, widenedFrom, candidatesConsidered: considered,
     rankedBy: fits ? "evidence+model" : "evidence", results, picks: {
       best: result.picks.best?.facility.id ?? null, fastest: result.picks.fastest?.facility.id ?? null, mostTrusted: result.picks.mostTrusted?.facility.id ?? null,
       bestValue: result.picks.bestValue?.facility.id ?? null, mostComfortable: result.picks.mostComfortable?.facility.id ?? null,

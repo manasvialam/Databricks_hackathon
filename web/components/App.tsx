@@ -8,7 +8,9 @@ import type { Preferences, ServiceId, Urgency } from "@/lib/types";
 import type { RecommendResponse } from "@/lib/recommend";
 import type { NearbyHospital, NearbyService } from "@/lib/nearby";
 import { SERVICES } from "@/lib/services";
-import { canListen, listen, stopSpeaking, type Listener } from "@/lib/client/speech";
+import { canListen, listen, onTalking, speak, stopSpeaking, type Listener } from "@/lib/client/speech";
+import { LiveBars, MicButton, VoicePill, type VoiceState } from "./Voice";
+import { HelperFace, type Mood } from "./Helper";
 import { useReadAlong } from "@/lib/client/readalong";
 import { useHistorySync, type NavEntry } from "@/lib/client/nav";
 import { ASSISTANT_PREFIX } from "@/lib/triage/history";
@@ -17,13 +19,16 @@ import { EmergencyCard, HospitalWhySheet, LangSheet, LocSheet, PrefSheet, WhyShe
 import { HospitalCard, HospitalList } from "./Hospitals";
 import { Tx } from "./Tx";
 import { Name } from "./Name";
+import { MapSheet, type MapTarget } from "./MapSheet";
+import { Shade } from "./Shade";
+import { specLabel } from "@/lib/specialty";
 
 interface Loc { lat: number; lon: number; label: string | null }
 interface Candidate { label: string; state: string; district: string; lat: number; lon: number }
 type View = "idle" | "loading" | "result" | "pickcare" | "needplace" | "error";
 
 async function api<T>(url: string, body?: unknown): Promise<T> {
-  const res = await fetch(url, body === undefined ? undefined : { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(body) });
+  const res = await fetch(url, body === undefined ? { cache: "no-store" } : { method: "POST", cache: "no-store", headers: { "content-type": "application/json" }, body: JSON.stringify(body) });
   const data = await res.json().catch(() => ({}));
   if (!res.ok) throw Object.assign(new Error((data as { error?: string }).error ?? "error"), { data, status: res.status });
   return data as T;
@@ -42,6 +47,8 @@ export function App() {
   const [candidates, setCandidates] = useState<Candidate[]>([]);
   const [, setNearby] = useState<NearbyService[]>([]);
   const [hospitals, setHospitals] = useState<NearbyHospital[]>([]);
+  const hospitalsRef = useRef(hospitals); hospitalsRef.current = hospitals;
+  const shownRef = useRef<NearbyHospital[]>([]);                  // the list on screen: the nearby list, or the specialty-ranked one for a typed need
   const [text, setText] = useState("");
   const [thread, setThread] = useState<{ role: "user" | "assistant"; text: string; note?: boolean }[]>([]);
   const [thinking, setThinking] = useState(false);
@@ -51,8 +58,16 @@ export function App() {
   const [sel, setSel] = useState(0);
   const [online, setOnline] = useState(true);
   const [listening, setListening] = useState(false);
+  const [talking, setTalking] = useState(false);              // speak() is talking (the read-along has its own state)
+  const [voiceThinking, setVoiceThinking] = useState(false);   // a question asked by voice is being answered
+  const viaVoice = useRef(false);                              // the current question was spoken, so the answer is spoken back
   const [caption, setCaption] = useState("");
-  const [sheet, setSheet] = useState<null | "why" | "prefs" | "lang" | "loc" | "hwhy">(null);
+  const [sheet, setSheet] = useState<null | "why" | "prefs" | "lang" | "loc" | "hwhy" | "map">(null);
+  const [mapTarget, setMapTarget] = useState<MapTarget | null>(null);
+  const [needHospitals, setNeedHospitals] = useState<NearbyHospital[]>([]);
+  const [needBusy, setNeedBusy] = useState(false);
+  const [needQuery, setNeedQuery] = useState<{ sp: string[]; n: number } | null>(null);   // a new search every time: n changes, so nothing is reused from an earlier one
+  const [hMode, setHMode] = useState<"browse" | "need">("need");   // "browse": a hospital opened from the nearby list; "need": the person described a problem
   const [recent, setRecent] = useState<PlaceChoice[]>([]);
   const [scrolled, setScrolled] = useState(false);
   const [errMsg, setErrMsg] = useState<string | null>(null);
@@ -108,6 +123,25 @@ export function App() {
       .catch(() => { if (live) { setNearby([]); setHospitals([]); } });
     return () => { live = false; };
   }, [loc]);
+
+  const fitHospitalsRef = useRef<(t: string, b: NearbyHospital[]) => Promise<NearbyHospital[] | null>>(async () => null);
+  // needs that map to no service (leg pain, fever, rash): hospitals ranked by the specialties the need points to
+  useEffect(() => {
+    if (!needQuery || !loc) return;
+    let live = true;
+    setNeedBusy(true);
+    api<{ hospitals: NearbyHospital[] }>(`/api/nearby?lat=${loc.lat}&lon=${loc.lon}&sp=${needQuery.sp.join(",")}&n=${needQuery.n}`)
+      .then(async (d) => {
+        const list = d.hospitals ?? [];
+        if (!live) return;
+        setNeedHospitals(list);
+        const fitted = await fitHospitalsRef.current(need.current ?? "", list);       // model refinement; nothing changes when it is off or fails
+        if (live && fitted) { setNeedHospitals(fitted); setSel(0); }
+      })
+      .catch(() => { if (live) setNeedHospitals([]); })
+      .finally(() => { if (live) setNeedBusy(false); });
+    return () => { live = false; };
+  }, [needQuery, loc]);
 
   const fetchRec = useCallback(async (services: ServiceId[], urgency: Urgency, at: Loc, p = prefs, c = card, touched = prefsTouched) => {
     last.current = { services, urgency };
@@ -177,20 +211,17 @@ export function App() {
     setLocBusy(false);
   }, [lang, setLocation]);
 
-  const hospitalsRef = useRef(hospitals); hospitalsRef.current = hospitals;
-
-  /** A need that maps to no service: the model scores the nearest hospitals against what the person described, and the best fit comes first. */
-  const fitHospitals = useCallback(async (needText: string) => {
-    const base = hospitalsRef.current;
-    if (!needText || base.length < 2) return;
+  /** The model scores the nearest of these hospitals against what the person described and refines the order. Specialty matches always stay
+   *  ahead of non-matches (the specialty search is the evidence-based part); the model only reorders inside each group. */
+  const fitHospitals = useCallback(async (needText: string, base: NearbyHospital[]): Promise<NearbyHospital[] | null> => {
+    if (!needText || base.length < 2) return null;
     try {
       const r = await api<{ fits: Record<string, { fit: number; why: string }> }>("/api/hospital-fit", { need: needText, ids: base.slice(0, 8).map((h) => h.id) });
-      if (!Object.keys(r.fits).length) return;
+      if (!Object.keys(r.fits).length) return null;
       const head = base.slice(0, 8).map((h, i) => ({ h: { ...h, fit: r.fits[h.id]?.fit, fitWhy: r.fits[h.id]?.why ? { k: "whyFitGeneric" as const, text: r.fits[h.id].why } : undefined }, i }));
-      head.sort((a, b) => (Math.round((b.h.fit ?? 0) * 5) - Math.round((a.h.fit ?? 0) * 5)) || a.i - b.i);   // fit in steps of 0.2, nearest first within a step
-      setHospitals([...head.map((x) => x.h), ...base.slice(8)]);
-      setSel(0);
-    } catch { /* nearest-first stays */ }
+      head.sort((a, b) => (Number(b.h.matched.length > 0) - Number(a.h.matched.length > 0)) || (Math.round((b.h.fit ?? 0) * 5) - Math.round((a.h.fit ?? 0) * 5)) || a.i - b.i);   // fit in steps of 0.2, nearest first within a step
+      return [...head.map((x) => x.h), ...base.slice(8)];
+    } catch { return null; }
   }, []);
 
   const viewRef = useRef<View>("idle"); viewRef.current = view;
@@ -200,7 +231,7 @@ export function App() {
   const currentChoice = () => {
     const r = recRef.current, i = selRef.current;
     if (viewRef.current === "result" && r?.results[i]) return { id: r.results[i].id, services: r.services.map((s) => s.id) as ServiceId[] };
-    if (viewRef.current === "pickcare" && hospitalsRef.current[i]) return { id: hospitalsRef.current[i].id, services: hospitalsRef.current[i].services };
+    if (viewRef.current === "pickcare" && shownRef.current[i]) return { id: shownRef.current[i].id, services: shownRef.current[i].services };
     return null;
   };
   const addAssistant = (text: string, note = false) => {
@@ -208,20 +239,24 @@ export function App() {
     history.current = [...history.current, ASSISTANT_PREFIX + text].slice(-8);
   };
 
-  const run = useCallback(async (raw: string) => {
+  fitHospitalsRef.current = fitHospitals;
+
+  const run = useCallback(async (raw: string, voice = false) => {
     const msg = raw.trim();
     if (!msg) return;
+    viaVoice.current = voice; setVoiceThinking(voice);
     stopSpeaking(); ra.stop();
     const cur = currentChoice();                       // a hospital is already on screen: this message continues the conversation
     setThread((th) => [...th, { role: "user", text: msg }]);
     setText(""); setCaption(""); setCareNote(null); setErrMsg(null); setNotice(null);
+    need.current = msg;
     const g = checkRedFlags(msg);              // runs in the browser: works with no network
     if (g) setGate(g);
     history.current = [...history.current, msg].slice(-8);
     if (cur && !g) setThinking(true); else { setRec(null); setView("loading"); }
     try {
       const r = await api<{
-        triage: { emergency: RedFlagResult | null; urgency: Urgency; services: ServiceId[]; understood: boolean; followUps: string[]; note: string | null; need: string | null };
+        triage: { emergency: RedFlagResult | null; urgency: Urgency; services: ServiceId[]; understood: boolean; followUps: string[]; note: string | null; need: string | null; specialties?: string[] };
         location: { lat: number; lon: number; matched: string } | null;
       }>("/api/triage", { message: msg, history: history.current.slice(0, -1), lang });
       const tr = r.triage;
@@ -238,7 +273,7 @@ export function App() {
       // Keep the hospital unless what was added needs a kind of care it does not have.
       if (cur && !tr.emergency && !g) {
         setThinking(false);
-        let solid = hospitalsRef.current.find((h) => h.id === cur.id)?.services ?? [];
+        let solid = [...shownRef.current, ...hospitalsRef.current].find((h) => h.id === cur.id)?.services ?? [];
         if (services.some((s) => !cur.services.includes(s) && !solid.includes(s))) {      // ask the server what this hospital really has evidence for
           try { solid = (await api<{ services: ServiceId[] }>("/api/covers", { id: cur.id })).services; } catch { /* decide with what we have */ }
         }
@@ -250,11 +285,13 @@ export function App() {
       }
       if (follow) { addAssistant(follow); asked.current++; }
 
+      // a need that maps to no service: search hospitals by the specialties it points to (a fresh search each time: n changes)
+      const startNeedSearch = () => { setHMode("need"); setNeedHospitals([]); setNeedQuery({ sp: tr.specialties ?? [], n: Date.now() }); };
       if (detected) {
         if (urgency === "emergency") { at = detected; setLoc(at); }
-        else { pending.current = services.length ? { services, urgency } : null; if (!services.length) setSel(0); setView(services.length ? "needplace" : "pickcare"); void askConfirm(detected); return; }
+        else { pending.current = services.length ? { services, urgency } : null; if (!services.length) { setSel(0); startNeedSearch(); } setView(services.length ? "needplace" : "pickcare"); void askConfirm(detected); return; }
       }
-      if (!services.length) { setSel(0); setView(g || tr.emergency ? "idle" : "pickcare"); if (!at && !g && !tr.emergency) { loadAsk(); setSheet("loc"); } else if (at && !g && !tr.emergency) void fitHospitals(need.current); return; }
+      if (!services.length) { setSel(0); startNeedSearch(); setView(g || tr.emergency ? "idle" : "pickcare"); if (!at && !g && !tr.emergency) { loadAsk(); setSheet("loc"); } return; }
       if (!at) { pending.current = { services, urgency }; loadAsk(); setView("needplace"); setSheet("loc"); return; }
       await fetchRec(services, urgency, at);
     } catch {
@@ -262,7 +299,7 @@ export function App() {
       setErrMsg(online ? t(lang, "error") : t(lang, "offline"));
       setView(g ? "idle" : "error");
     }
-  }, [fetchRec, online, lang, askConfirm, loadAsk, fitHospitals]);
+  }, [fetchRec, online, lang, askConfirm, loadAsk]);
 
   // back on the home screen the conversation starts over
   useEffect(() => {
@@ -275,7 +312,7 @@ export function App() {
     setCaption(""); setNotice(null);
     const l = listen(speechLang(lang), {
       interim: setCaption,
-      final: (v) => { void run(v); },
+      final: (v) => { void run(v, true); },
       error: (code) => {
         if (code === "not-allowed" || code === "service-not-allowed" || code === "start-failed") setNotice(t(lang, "voiceUnavailable"));
         else if (code === "language-not-supported") setNotice(t(lang, "micLangUnavailable"));
@@ -297,17 +334,43 @@ export function App() {
     (e: NavEntry) => {
       setSel(e.sel);
       setView(e.v === "result" && !recRef.current ? "idle" : (e.v as View));
-      setSheet(e.ov === "why" || e.ov === "prefs" || e.ov === "lang" || e.ov === "loc" || e.ov === "hwhy" ? e.ov : null);
+      setSheet(e.ov === "why" || e.ov === "prefs" || e.ov === "lang" || e.ov === "loc" || e.ov === "hwhy" || e.ov === "map" ? e.ov : null);
       if (!e.g) setGate(null);
     },
   );
+  useEffect(() => onTalking(setTalking), []);
+  const speaking = talking || ra.state.status === "playing";
+  const voiceState: VoiceState = listening ? "listening" : speaking ? "speaking" : voiceThinking && (view === "loading" || needBusy) ? "thinking" : "idle";
+  // the helper's expression: what it is doing right now, or how it feels about the answer
+  const [happy, setHappy] = useState(false);
+  const arrived = view === "result" ? rec?.results[0]?.id : view === "pickcare" && !needBusy ? needHospitals[0]?.id : null;
+  useEffect(() => { if (!arrived) return; setHappy(true); const id = setTimeout(() => setHappy(false), 3200); return () => clearTimeout(id); }, [arrived]);
+  const mood: Mood = voiceState === "listening" ? "listening" : voiceState === "speaking" ? "speaking" : gate ? "concerned"
+    : voiceState === "thinking" || view === "loading" || (view === "pickcare" && needBusy) ? "thinking" : happy ? "happy" : "idle";
+  const stopVoice = () => { stopSpeaking(); ra.stop(); listener.current?.stop(); setVoiceThinking(false); viaVoice.current = false; };
+
+  // talk mode: a question asked by voice gets the best answer spoken back
+  const sayAnswer = useCallback((name: string, min: number, km: number, sure: string) => {
+    viaVoice.current = false; setVoiceThinking(false);
+    const ok = speak(t(lang, "readSlip", { name, min, km, sure }), hasKey(lang, "readSlip") ? speechLang(lang) : "en-IN");
+    if (!ok) setNotice(t(lang, "ttsUnavailable"));
+  }, [lang]);
+  useEffect(() => {
+    if (!viaVoice.current || view !== "result" || !rec?.results[0]) return;
+    const r = rec.results[0];
+    const level = t(lang, r.solid ? (r.pService >= 0.75 ? "sureHigh" : r.pService >= 0.55 ? "sureMid" : "sureLow") : "sureLow");
+    sayAnswer(r.name, r.etaMinutes, r.distanceKm, `${t(lang, "howSure")}: ${level}.`);
+  }, [rec, view]); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => {
+    if (!viaVoice.current || view !== "pickcare" || hMode !== "need" || needBusy || !needHospitals[0]) return;
+    const h = needHospitals[0];
+    sayAnswer(h.name, h.minutes ?? Math.max(3, Math.round(h.km * 3.5)), h.roadKm ?? h.km, "");
+  }, [needHospitals, needBusy, view, hMode]); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => { if (gate) { viaVoice.current = false; setVoiceThinking(false); } }, [gate]);   // an emergency card reads itself aloud
+
   const picked = rec?.results[sel] ?? null;
   const showIdle = view === "idle" && !gate;
 
-  const readSlip = () => {
-    const ok = ra.start((document.querySelector("main article.card") as ParentNode | null) ?? document);
-    setNotice(ok ? null : t(lang, "ttsUnavailable"));
-  };
   const readSheet = () => {
     const ok = ra.start(document.querySelector('[role="dialog"]') ?? document);
     setNotice(ok ? null : t(lang, ra.available ? "readingNothing" : "ttsUnavailable"));
@@ -335,12 +398,23 @@ export function App() {
     { id: "dialysis", icon: Droplets, key: "quickDialysis" }, { id: "cath_lab", icon: HeartPulse, key: "quickHeart" },
     { id: "oncology", icon: Ribbon, key: "quickCancer" }, { id: "icu", icon: BedDouble, key: "quickICU" },
   ];
-  const openHospital = (h: NearbyHospital) => {
-    const i = hospitals.findIndex((x) => x.id === h.id);
+  const shownHospitals = hMode === "need" ? needHospitals : hospitals;
+  shownRef.current = shownHospitals;
+  const openHospital = (h: NearbyHospital, mode?: "browse" | "need") => {
+    const m = mode ?? hMode;
+    const i = (m === "need" ? needHospitals : hospitals).findIndex((x) => x.id === h.id);
     if (i < 0) return;
+    if (mode) setHMode(mode);
     setSel(i); setView("pickcare"); window.scrollTo({ top: 0, behavior: "smooth" });
   };
+  const newSearch = () => {
+    stopVoice(); setGate(null); setSel(0); setThread([]); setThinking(false); setRec(null); setErrMsg(null); setSheet(null); setView("idle");
+    window.scrollTo({ top: 0 });
+    setTimeout(() => document.getElementById("ask")?.focus(), 350);
+  };
+  const openMap = (t: MapTarget) => { setMapTarget(t); setSheet("map"); };
   const startService = (id: ServiceId, urgent: boolean) => {
+    need.current = null; viaVoice.current = false;   // a tap is a new search: do not carry over what was typed before
     const urgency: Urgency = urgent ? "urgent" : "routine";
     if (loc) void fetchRec([id], urgency, loc); else { pending.current = { services: [id], urgency }; loadAsk(); setView("needplace"); setSheet("loc"); }
   };
@@ -348,7 +422,10 @@ export function App() {
   const composer = view !== "idle" || !!gate;
 
   return (
-    <div className="shell" data-composer={composer}>
+    // a <section>, not a <div>: browser extensions (incognito openers, translators) inject a <div> at the top of <body> before React
+    // hydrates, and React only skips such stray nodes when their tag differs from ours
+    <section className="shell" data-composer={composer}>
+      <Shade />
       <header className="topbar" data-scrolled={scrolled}>
         {(view !== "idle" || gate) && <button type="button" className="icon-btn tap" aria-label={t(lang, "back")} onClick={nav.back}><ChevronLeft size={22} aria-hidden /></button>}
         <button type="button" className="locbtn tap" onClick={() => setSheet("loc")} aria-label={t(lang, "locSheetTitle")}>
@@ -364,7 +441,7 @@ export function App() {
 
       <main className="col" id="main">
         <h1 className="sr-only" data-noread>{t(lang, "appTitle")}</h1>
-        <div className="stack enter" key={gate ? `em-${sel}` : `${view}-${sel}`}>
+        <div className={`stack enter${showIdle ? " home" : ""}`} key={gate ? `em-${sel}` : `${view}-${sel}`}>
           {!showIdle && thread.length > 0 && (
             <div className="thread">
               {thread.map((m, i) => m.role === "user"
@@ -392,15 +469,26 @@ export function App() {
           )}
           {view === "idle" && errMsg && gate && <p className="notes">{errMsg}</p>}
 
-          {view === "pickcare" && hospitals[sel] && (
+          {view === "pickcare" && needBusy && hMode === "need" && !shownHospitals[sel] && (
             <>
-              <HospitalCard h={hospitals[sel]} lang={lang} need={said} onWhy={() => setSheet("hwhy")} onSpeak={readSlip} />
+              <div className="thinking" role="status"><span className="dots" aria-hidden><i /><i /><i /></span>{t(lang, "thinking")}</div>
+              <div className="card skel" aria-hidden><i className="k1" /><i className="k2" /><i className="k3" /><i className="k4" /></div>
+            </>
+          )}
+          {view === "pickcare" && shownHospitals[sel] && (
+            <>
+              {hMode === "need" && (needQuery?.sp.length ?? 0) > 0 && (
+                <p className="matched-for" data-read>{t(lang, "bestFor2", { what: needQuery!.sp.map((id) => specLabel(id, lang)).join(" · ") })}</p>
+              )}
+              {careNote && hMode === "need" && <p className="muted" style={{ padding: "0 6px" }}>{careNote}</p>}
+              <HospitalCard h={shownHospitals[sel]} lang={lang} origin={loc} need={hMode === "need" ? said : null} guidance={hMode === "need"} onWhy={() => setSheet("hwhy")}
+                onDirections={() => openMap({ name: shownHospitals[sel].name, lat: shownHospitals[sel].lat, lon: shownHospitals[sel].lon, fallbackKm: shownHospitals[sel].km })} />
               <div style={{ padding: "6px 6px 0" }}><h2 className="section-label" style={{ padding: 0 }}>{t(lang, "hospitalsNear")}</h2></div>
-              <HospitalList hospitals={hospitals.filter((_, i) => i !== sel)} lang={lang} onOpen={openHospital} />
+              <HospitalList hospitals={shownHospitals.filter((_, i) => i !== sel)} lang={lang} onOpen={openHospital} />
               <p className="foot">{t(lang, "notAffiliated")}</p>
             </>
           )}
-          {view === "pickcare" && !hospitals[sel] && (
+          {view === "pickcare" && !shownHospitals[sel] && !needBusy && (
             <>
               <div style={{ padding: "0 4px" }}>
                 <h2 className="title">{t(lang, "pickCare")}</h2>
@@ -428,20 +516,17 @@ export function App() {
 
           {showIdle && (
             <>
-              <div className="hero">
-                <h2 className="hero-title" data-read>{t(lang, "describe")}</h2>
-                <p className="hero-sub">{t(lang, "sub")}</p>
-              </div>
-
-              {canMic && (
-                <div className="orb-wrap">
-                  <button type="button" className="orb tap" data-noread data-live={listening} aria-label={listening ? t(lang, "stop") : t(lang, "mic")} onClick={toggleMic}>
-                    <i className="ring r1" aria-hidden /><i className="ring r2" aria-hidden /><i className="ring r3" aria-hidden />
-                    <span className="orb-core">{listening ? <Square size={34} aria-hidden /> : <Mic size={44} strokeWidth={1.6} aria-hidden />}</span>
-                  </button>
-                  <p className="orb-label" aria-live="polite">{listening ? (caption || t(lang, "listening")) : t(lang, "tapToSpeak")}</p>
+              <section className="hero-card" data-mood={mood}>
+                <div className="hero-copy">
+                  <h2 className="hero-title" data-read>{t(lang, "describe")}</h2>
+                  <p className="hero-caption" aria-live="polite">
+                    {voiceState === "listening" ? (caption || t(lang, "listening")) : voiceState === "speaking" ? t(lang, "speakingNow") : mood === "thinking" ? t(lang, "thinking") : t(lang, "heroSub")}
+                  </p>
+                  <MicButton state={voiceState} label={voiceState === "idle" ? t(lang, "mic") : voiceState === "listening" ? t(lang, "listening") : voiceState === "speaking" ? t(lang, "stop") : t(lang, "thinking")}
+                    onClick={() => (voiceState === "speaking" || voiceState === "thinking" ? stopVoice() : canMic ? toggleMic() : document.getElementById("ask")?.focus())} />
                 </div>
-              )}
+                <div className="hero-figure" aria-hidden><HelperFace mood={mood} /></div>
+              </section>
 
               <form className="typebar" onSubmit={(e) => { e.preventDefault(); void run(text); }}>
                 <Search size={19} aria-hidden />
@@ -465,7 +550,7 @@ export function App() {
                     <h2 className="section-label" style={{ padding: 0 }}>{t(lang, "hospitalsNear")}</h2>
                     <p className="tiny" style={{ marginTop: 2 }}>{t(lang, "hospitalsNote")}</p>
                   </div>
-                  <HospitalList hospitals={hospitals} lang={lang} onOpen={openHospital} />
+                  <HospitalList hospitals={hospitals} lang={lang} onOpen={(h) => openHospital(h, "browse")} />
                 </>
               )}
               <p className="foot">{t(lang, "notAffiliated")}</p>
@@ -475,7 +560,7 @@ export function App() {
           {view === "result" && rec && picked && (
             <>
               {rec.notes.length > 0 && <div className="notes">{rec.notes.map((n) => <p key={n.text}><Tx m={n} lang={lang} /></p>)}</div>}
-              <Slip r={picked} lang={lang} services={rec.services} onWhy={() => setSheet("why")} onSpeak={readSlip} />
+              <Slip r={picked} lang={lang} services={rec.services} origin={loc} onWhy={() => setSheet("why")} onDirections={() => openMap({ name: picked.name, lat: picked.lat, lon: picked.lon, fallbackKm: picked.distanceKm, fallbackMinutes: picked.etaMinutes })} />
               {rec.results.length > 1 && (
                 <>
                   <div className="list-head">
@@ -505,7 +590,7 @@ export function App() {
 
       {ra.state.status !== "idle" && (
         <div className="ra-bar" role="group" aria-label={t(lang, "listen")}>
-          <span className="ra-count" aria-live="polite">{t(lang, "readingProgress", { n: ra.state.index + 1, m: ra.state.total })}</span>
+          <LiveBars active={ra.state.status === "playing"} /><span className="ra-count" aria-live="polite">{t(lang, "readingProgress", { n: ra.state.index + 1, m: ra.state.total })}</span>
           <button type="button" className="ra-btn tap" onClick={ra.prev} aria-label={t(lang, "prevPart")}><SkipBack size={18} aria-hidden /></button>
           {ra.state.status === "playing"
             ? <button type="button" className="ra-btn ra-main tap" onClick={ra.pause} aria-label={t(lang, "pause")}><Pause size={20} aria-hidden /></button>
@@ -516,31 +601,29 @@ export function App() {
         </div>
       )}
 
+      {!showIdle && voiceState !== "idle" && !(voiceState === "speaking" && ra.state.status === "playing") && (
+        <VoicePill state={voiceState} stopLabel={t(lang, "stop")} onStop={stopVoice}
+          label={voiceState === "listening" ? (caption || t(lang, "listening")) : voiceState === "speaking" ? t(lang, "speakingNow") : t(lang, "thinking")} />
+      )}
       {composer && (
-        <div className="composer">
-          {(listening || caption) && <p className="caption" aria-live="polite">{listening && !caption ? t(lang, "listening") : caption}</p>}
-          <form className="capsule" onSubmit={(e) => { e.preventDefault(); void run(text); }}>
-            <Search size={19} aria-hidden />
-            <input value={text} onChange={(e) => setText(e.target.value)} placeholder={t(lang, "placeholder")} aria-label={t(lang, "placeholder")} enterKeyHint="send" autoComplete="off" />
-            {text.trim()
-              ? <button type="submit" className="cap-btn tap" data-kind="send" aria-label={t(lang, "send")}><ArrowUp size={21} strokeWidth={2.4} aria-hidden /></button>
-              : canMic
-                ? <button type="button" className="cap-btn tap" data-live={listening} aria-label={listening ? t(lang, "stop") : t(lang, "mic")} onClick={toggleMic}>{listening ? <Square size={18} aria-hidden /> : <Mic size={21} aria-hidden />}</button>
-                : <button type="submit" className="cap-btn" data-kind="send" aria-label={t(lang, "send")} disabled style={{ opacity: .35 }}><ArrowUp size={21} aria-hidden /></button>}
-          </form>
+        <div className="dock glass">
+          <button type="button" className="dock-btn tap" onClick={newSearch}><Search size={19} aria-hidden /><span>{t(lang, "newSearch")}</span></button>
+          {canMic && <MicButton state={voiceState} label={voiceState === "idle" ? t(lang, "mic") : voiceState === "listening" ? t(lang, "listening") : voiceState === "speaking" ? t(lang, "stop") : t(lang, "thinking")}
+            onClick={() => (voiceState === "speaking" || voiceState === "thinking" ? stopVoice() : toggleMic())} />}
         </div>
       )}
 
-      {sheet === "hwhy" && hospitals[sel] && <HospitalWhySheet h={hospitals[sel]} lang={lang} onClose={() => setSheet(null)} onListen={readSheet} />}
+      {sheet === "hwhy" && shownHospitals[sel] && <HospitalWhySheet h={shownHospitals[sel]} lang={lang} onClose={() => setSheet(null)} onListen={readSheet} />}
       {sheet === "loc" && <LocSheet lang={lang} busy={locBusy} msg={locMsg} candidates={candidates} recent={recent} hint={view === "needplace" ? (askText ?? t(lang, "chooseWhereHint")) : null}
         confirm={confirm} onYes={() => confirm && applyLocation(confirm.loc)} onNo={() => setConfirm(null)}
         onDevice={useDevice} onLookup={lookupPlace} onPick={pickPlace} onClose={() => { setConfirm(null); setSheet(null); }} onListen={readSheet} />}
+      {sheet === "map" && mapTarget && loc && <MapSheet origin={loc} dest={mapTarget} lang={lang} onClose={() => setSheet(null)} onListen={readSheet} />}
       {sheet === "lang" && <LangSheet lang={lang} onClose={() => setSheet(null)} onListen={readSheet} onPick={(l) => { chooseLang(l); setSheet(null); }} />}
       {sheet === "why" && picked && rec && <WhySheet r={picked} lang={lang} onClose={() => setSheet(null)} trafficNote={rec.traffic.note} context={rec.coverage.context} onListen={readSheet} />}
       {sheet === "prefs" && (
         <PrefSheet lang={lang} prefs={prefs} card={card} onClose={() => setSheet(null)} onListen={readSheet}
           onApply={(p, c) => { setPrefs(p); setCard(c); setPrefsTouched(true); setSheet(null); if (last.current && loc) void fetchRec(last.current.services, last.current.urgency, loc, p, c, true); }} />
       )}
-    </div>
+    </section>
   );
 }

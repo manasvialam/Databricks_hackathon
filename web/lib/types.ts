@@ -73,6 +73,7 @@ export interface Facility {
   ne: number | null;
   nsp: number | null;
   cl: Claim[];
+  sc?: string[];          // plain-language specialty categories, most-listed first (scripts/add_specialties.py)
   rs: Reason[];
   rg: Registry | null;
 }
@@ -94,7 +95,7 @@ export interface Preferences {
   government: number;
 }
 
-export interface TrafficEta { minutes: number; freeFlowMinutes: number | null; live: boolean; congestion: number }
+export interface TrafficEta { minutes: number; freeFlowMinutes: number | null; live: boolean; congestion: number; roadKm?: number }
 
 /**
  * One named signal in "How we decided". `label`/`detail` are English; `k`/`v` and `dk`/`dv` are the message keys the

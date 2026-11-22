@@ -22,13 +22,15 @@ export async function readJson(req: Request, maxBytes = 20_000): Promise<unknown
 
 export class HttpError extends Error { constructor(public status: number, message: string) { super(message); } }
 
-export const fail = (status: number, message: string, extra: Record<string, unknown> = {}) => Response.json({ error: message, ...extra }, { status });
+export const fail = (status: number, message: string, extra: Record<string, unknown> = {}) => Response.json({ error: message, ...extra }, { status, headers: { "Cache-Control": "no-store" } });
 
 export function handle(fn: (req: Request) => Promise<Response>) {
   return async (req: Request) => {
     try {
       if (rateLimited(clientIp(req))) return fail(429, "Too many requests. Please wait a moment and try again.");
-      return await fn(req);
+      const res = await fn(req);
+      if (!res.headers.has("Cache-Control")) res.headers.set("Cache-Control", "no-store");   // every answer depends on the request: never reuse one for another search
+      return res;
     } catch (e) {
       if (e instanceof HttpError) return fail(e.status, e.message);
       console.error("route error", e instanceof Error ? e.message : e);

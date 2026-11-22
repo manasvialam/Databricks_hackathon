@@ -58,6 +58,11 @@ export async function loadFromWarehouse(): Promise<boolean> {
     for (const r of await sqlQueryLong(`SELECT k, payload FROM ${TABLE} WHERE kind = 'district'`)) if (r.k && r.payload) districts[r.k] = JSON.parse(r.payload);
     const meta = JSON.parse((await sqlQueryLong(`SELECT payload FROM ${TABLE} WHERE kind = 'meta'`))[0]?.payload ?? "null") as Loaded["meta"] | null;
     if (facilities.length < 1000 || !meta) throw new Error(`warehouse returned too little data (${facilities.length} facilities)`);
+    // the warehouse table predates the specialty categories: take them from the bundled file by id until app_snapshot is reloaded with `sc`
+    if (!facilities.some((f) => f.sc?.length)) {
+      const bundled = new Map(readJson<Facility[]>("facilities.snapshot.json").map((f) => [f.id, f.sc]));
+      for (const f of facilities) f.sc = bundled.get(f.id) ?? f.sc;
+    }
     store.cache = build(facilities, districts, meta);
     Object.assign(info, { source: "warehouse", loadedAt: new Date().toISOString(), warehouseError: null });
     return true;

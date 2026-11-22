@@ -1,10 +1,13 @@
 "use client";
 import { Name } from "./Name";
 import { useEffect, useRef, useState } from "react";
-import { AlertTriangle, BadgeCheck, ChevronRight, Clock, FileText, Navigation, Phone, PhoneCall, ShieldQuestion, Volume2 } from "lucide-react";
+import { AlertTriangle, BadgeCheck, ChevronRight, Clock, Navigation, Phone, ShieldQuestion } from "lucide-react";
 import type { ResultDto } from "@/lib/recommend";
 import { svcLabel, t, type Lang } from "@/lib/i18n";
+import { specLabel } from "@/lib/specialty";
 import { Tx } from "./Tx";
+import { RouteMap, useRoute } from "./RouteMap";
+import { TrafficStrip } from "./Traffic";
 
 export { svcLabel };
 
@@ -62,35 +65,65 @@ export function RegistryBadge({ registry, lang }: { registry: { tier: "verified"
   );
 }
 
-export function Slip({ r, lang, services, onWhy, onSpeak }: {
-  r: ResultDto; lang: Lang; services: { id: string }[]; onWhy: () => void; onSpeak: () => void;
+const PICK_KEY: Record<string, "fastest" | "mostTrusted" | "bestValue" | "mostComfortable" | "closest"> = {
+  fastest: "fastest", most_trusted: "mostTrusted", best_value: "bestValue", most_comfortable: "mostComfortable", closest: "closest",
+};
+
+/** The small route map inside a card: tap it to open the full map. */
+export function MiniMap({ origin, dest, name, route, lang, onOpen }: { origin: { lat: number; lon: number }; dest: { lat: number; lon: number }; name: string; route: ReturnType<typeof useRoute>; lang: Lang; onOpen: () => void }) {
+  return (
+    <div className="mini" role="button" tabIndex={0} aria-label={t(lang, "openMap")} onClick={onOpen} onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); onOpen(); } }}>
+      <RouteMap origin={origin} dest={dest} route={route} interactive={false} label={name} />
+      <span className="glass mini-open">{t(lang, "openMap")}</span>
+    </div>
+  );
+}
+
+export function Slip({ r, lang, services, origin, onWhy, onDirections }: {
+  r: ResultDto; lang: Lang; services: { id: string }[]; origin: { lat: number; lon: number } | null; onWhy: () => void; onDirections: () => void;
 }) {
-  const [prep, setPrep] = useState(false);
+  const [door, setDoor] = useState(false);
+  const route = useRoute(origin, r);
   const level = sureLevel(r);
   const svc = svcLabel(services[0]?.id ?? "", lang);
   const phone = r.phones[0];
-  const dirUrl = `https://www.google.com/maps/dir/?api=1&destination=${r.lat},${r.lon}`;
+  const ev = r.evidence.find((e) => e.snippets.length);
+  const quote = ev?.snippets[0]?.text, src = ev?.sources[0]?.url;
+  const domain = (u: string) => { try { return new URL(u).hostname.replace(/^www\./, ""); } catch { return ""; } };
   const on = level === "high" ? 3 : level === "mid" ? 2 : 1;
   const where = placeLine(r);
   const warning = r.warnings[0];
+  const km = route?.available ? route.km : r.distanceKm, min = route?.available ? route.minutes : r.etaMinutes;
+  const picks = r.tags.filter((x) => PICK_KEY[x]);
   return (
     <article className="card" aria-labelledby={`n-${r.id}`}>
-      <div className="slip-top">
-        <div className="tags">
-          <RegistryBadge registry={r.registry} lang={lang} />
-          {r.open24h && <span className="tag"><Clock size={13} aria-hidden />{t(lang, "open24")}</span>}
-        </div>
-        <button type="button" className="speak tap" onClick={onSpeak} aria-label={t(lang, "readAloud")}><Volume2 size={17} aria-hidden /></button>
+      <div className="tags">
+        {picks.map((x) => <span key={x} className="tag tag-pick">{t(lang, PICK_KEY[x])}</span>)}
+        <RegistryBadge registry={r.registry} lang={lang} />
+        {r.ownership === "government" && <span className="tag">{t(lang, "gov")}</span>}
+        {r.ownership === "private" && <span className="tag">{t(lang, "priv")}</span>}
+        {r.open24h && <span className="tag"><Clock size={13} aria-hidden />{t(lang, "open24")}</span>}
       </div>
 
       <h2 className="slip-name" id={`n-${r.id}`} data-read><Name text={r.name} lang={lang} /></h2>
       {where && <p className="slip-sub"><Name text={where} lang={lang} /></p>}
 
-      <div className="stats" data-read data-read-text={`${r.etaMinutes} ${t(lang, "min")}, ${r.distanceKm} ${t(lang, "km")}`}>
-        <div className="stat-num">{r.etaMinutes}<sup>{t(lang, "min")}</sup></div>
-        <div className="stat-num">{r.distanceKm}<sup>{t(lang, "km")}</sup></div>
+      <div className="stats">
+        <div className="stat-num">{min}<sup>{t(lang, "min")}</sup></div>
+        <div className="stat-num">{km}<sup>{t(lang, "km")}</sup></div>
       </div>
-      <p className="eta-note">{t(lang, "etaRange", { low: r.etaLow, high: r.etaHigh })}</p>
+      {route?.available && route.traffic
+        ? <TrafficStrip traffic={route.traffic} extraMin={Math.max(0, (route.minutes ?? 0) - (route.freeMinutes ?? 0))} lang={lang} />
+        : <p className="eta-note">{t(lang, "etaRange", { low: r.etaLow, high: r.etaHigh })}</p>}
+      {origin && <MiniMap origin={origin} dest={r} name={r.name} route={route} lang={lang} onOpen={onDirections} />}
+
+      {r.specialties.length > 0 && (
+        <div className="block" style={{ marginTop: 16 }}>
+          <h3 className="block-h">{t(lang, "specialisesIn")}</h3>
+          <div className="tags">{r.specialties.slice(0, 4).map((id) => <span key={id} className="tag">{specLabel(id, lang)}</span>)}</div>
+        </div>
+      )}
+      {quote && <p className="quote-line" lang="en">“{quote.length > 110 ? quote.slice(0, 107) + "…" : quote}”{src && <small> {domain(src)}</small>}</p>}
 
       <div className="sure">
         <span className="meter" data-level={level} aria-hidden>{[1, 2, 3].map((i) => <i key={i} data-on={i <= on} />)}</span>
@@ -103,21 +136,19 @@ export function Slip({ r, lang, services, onWhy, onSpeak }: {
         {phone
           ? <a className="btn btn-primary tap" href={`tel:${phone.replace(/[^\d+]/g, "")}`}><Phone size={18} aria-hidden />{t(lang, "call")}</a>
           : <span className="btn" aria-disabled="true"><Phone size={18} aria-hidden />{t(lang, "call")}</span>}
-        <a className="btn btn-soft tap" href={dirUrl} target="_blank" rel="noopener noreferrer"><Navigation size={18} aria-hidden />{t(lang, "directions")}</a>
+        <button type="button" className="btn btn-soft tap" onClick={onDirections}><Navigation size={18} aria-hidden />{t(lang, "directions")}</button>
       </div>
       {!phone && <p className="tiny" style={{ marginTop: 8, textAlign: "center" }}>{t(lang, "noPhone")}</p>}
 
       <div className="more">
         <button type="button" className="more-row" onClick={onWhy}>{t(lang, "whyThis")}<ChevronRight size={18} aria-hidden /></button>
-        <button type="button" className="more-row" aria-expanded={prep} aria-controls={`prep-${r.id}`} onClick={() => setPrep((p) => !p)}>
-          {t(lang, "beforeYouGo")}<ChevronRight size={18} aria-hidden />
+        <button type="button" className="more-row" aria-expanded={door} aria-controls={`door-${r.id}`} onClick={() => setDoor((p) => !p)}>
+          {t(lang, "showAtDoor")}<ChevronRight size={18} aria-hidden />
         </button>
-        <div className="more-body" id={`prep-${r.id}`} data-open={prep}>
+        <div className="more-body" id={`door-${r.id}`} data-open={door}>
           <div>
-            <ul>
-              <li><PhoneCall size={16} aria-hidden /><span>{t(lang, "callFirst", { service: svc })}</span></li>
-              <li><FileText size={16} aria-hidden /><span>{t(lang, "bringLine")}</span></li>
-            </ul>
+            <div className="doorrow"><b>{t(lang, "say")}</b><span>{t(lang, "sayLine", { service: svc })}</span></div>
+            <div className="doorrow"><b>{t(lang, "carry")}</b><span>{t(lang, "carryItems").split("|").join(" · ")}</span></div>
           </div>
         </div>
       </div>

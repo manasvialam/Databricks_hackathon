@@ -4,6 +4,7 @@ import { ASSISTANT_PREFIX } from "./history";
 import { checkRedFlags, type RedFlagResult } from "./redflags";
 import { matchNeeds, maxUrgency, placeCandidates, type Condition } from "./mapping";
 import type { Lang } from "../i18n";
+import { isSpecialtyId, matchSpecialties } from "../specialty";
 
 export interface LlmExtraction {
   symptoms: string[];
@@ -13,6 +14,7 @@ export interface LlmExtraction {
   followUps: string[];
   location?: string | null;
   summary?: string;
+  specialties?: string[];           // specialty category ids the need points to (lib/specialty.ts)
 }
 /** `lang` is the interface language: follow-up questions and the summary should come back in it. */
 export type LlmExtractor = (text: string, history: string[], lang?: Lang) => Promise<LlmExtraction | null>;
@@ -26,6 +28,7 @@ export interface TriageResult {
   placeCandidates: string[];
   understood: boolean;              // false when no service could be identified
   lowConfidence: boolean;
+  specialties: string[];            // specialty categories the need points to, best first (model first, keyword match as fallback)
   need: string | null;              // the model's plain-English restatement of the need, used to judge hospital fit
   source: "rules" | "llm+rules";
   note: string | null;
@@ -41,7 +44,7 @@ export function validateExtraction(x: unknown): LlmExtraction | null {
   const conds = Array.isArray(o.possibleConditions)
     ? o.possibleConditions.filter((c): c is Record<string, string> => !!c && typeof (c as Record<string, unknown>).name === "string").slice(0, 3).map((c) => ({ name: String(c.name).slice(0, 80), why: String(c.why ?? "").slice(0, 200) }))
     : [];
-  return { symptoms: arr(o.symptoms).slice(0, 8), urgency: urg, services: arr(o.services).filter(isServiceId), possibleConditions: conds, followUps: arr(o.followUps).slice(0, 2), location: typeof o.location === "string" ? o.location.slice(0, 80) : null, summary: typeof o.summary === "string" ? o.summary.slice(0, 300) : undefined };
+  return { symptoms: arr(o.symptoms).slice(0, 8), urgency: urg, services: arr(o.services).filter(isServiceId), possibleConditions: conds, followUps: arr(o.followUps).slice(0, 2), location: typeof o.location === "string" ? o.location.slice(0, 80) : null, summary: typeof o.summary === "string" ? o.summary.slice(0, 300) : undefined, specialties: arr(o.specialties).filter(isSpecialtyId).slice(0, 3) };
 }
 
 export { ASSISTANT_PREFIX };
@@ -78,6 +81,7 @@ export async function triage(text: string, opts: { history?: string[]; llm?: Llm
   return {
     emergency, urgency, services: services.slice(0, 4), conditions, followUps,
     placeCandidates: [...new Set(places)], understood: services.length > 0, lowConfidence: !!rules && rules.confidence === "low" && !llm,
+    specialties: [...new Set([...(llm?.specialties ?? []), ...matchSpecialties(text)])].slice(0, 3),
     need: llm?.summary ?? null,
     source: llm ? "llm+rules" : "rules",
     note: llm ? null : "Understood with built-in rules; the language model was not used for this message.",

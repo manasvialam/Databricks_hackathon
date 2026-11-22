@@ -39,6 +39,17 @@ describe("golden queries on the real snapshot", () => {
     else expect(r.radiusKm).toBeGreaterThan(25);
   });
 
+  it("never says nothing is suitable nearby when good options are close", async () => {
+    // Thanjavur has a handful of cath-lab hospitals within 3 km but fewer than six within 25 km
+    const r = await recommend({ services: ["cath_lab"], urgency: "urgent", lat: 10.7789, lon: 79.1401 }, { traffic: noTraffic as never });
+    const text = r.notes.map((n) => n.text).join(" ");
+    const near = r.results.filter((x) => x.distanceKm <= 25);
+    expect(near.length).toBeGreaterThan(0);
+    expect(text).not.toMatch(/nothing suitable/i);
+    expect(r.results.every((x) => x.distanceKm <= 30)).toBe(true);           // with three good options close, nothing 59 or 173 km away pads the list
+    expect(text).toMatch(/good options within 25 km/i);
+  });
+
   it("widens the search and tells the user", async () => {
     const r = await recommend({ services: ["nicu"], urgency: "urgent", lat: 27.4, lon: 94.2 }, { traffic: noTraffic as never });
     if (r.widenedFrom) expect(r.notes.map((n) => n.text).join(" ")).toMatch(/widened/i);
