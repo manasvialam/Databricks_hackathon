@@ -1,6 +1,6 @@
 "use client";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { ArrowUp, ChevronRight, Globe, Info, LocateFixed, MapPin, Mic, Pause, Phone, Play, Search, SkipBack, SkipForward, SlidersHorizontal, Square, Volume2, X } from "lucide-react";
+import { useCallback, useEffect, useRef, useState } from "react";
+import { ArrowRight, ArrowUp, BadgeCheck, ChevronRight, Globe, Info, LocateFixed, MapPin, Mic, Pause, Phone, Play, Search, SkipBack, SkipForward, SlidersHorizontal, Square, Volume2, X } from "lucide-react";
 import { LANGS, hasKey, isLang, say, speechLang, svcPlain, t, type Lang } from "@/lib/i18n";
 import { checkRedFlags, type RedFlagResult } from "@/lib/triage/redflags";
 import { PERSONA_BY_ID } from "@/lib/preferences";
@@ -183,7 +183,6 @@ export function App() {
   }, [listening, lang, run, online]);
 
   const picked = rec?.results[sel] ?? null;
-  const scale = useMemo(() => Math.max(10, ...(rec?.results ?? []).map((r) => r.etaHigh)) * 1.1, [rec]);
   const showIdle = view === "idle" && !gate;
 
   const readSlip = () => {
@@ -199,7 +198,7 @@ export function App() {
     const ok = ra.start(document.querySelector('[role="dialog"]') ?? document.querySelector("main") ?? document);
     setNotice(ok ? null : t(lang, ra.available ? "readingNothing" : "ttsUnavailable"));
   };
-  // stop reading when the language or the chosen hospital changes; an emergency card is read out loud as soon as it appears
+  // stop reading when the language, the chosen hospital or the open sheet changes; an emergency card is read out loud as soon as it appears
   useEffect(() => { ra.stop(); }, [lang, sel, sheet]); // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => { if (ra.state.skipped) setNotice(t(lang, "readingSkipped")); }, [ra.state.skipped]); // eslint-disable-line react-hooks/exhaustive-deps
   const emergencyRead = useRef<RedFlagResult | null>(null);
@@ -216,21 +215,23 @@ export function App() {
       candidates={candidates} onPick={pickPlace} />
   );
 
+  const composer = view !== "idle" || !!gate;
+
   return (
-    <div className="shell">
+    <div className="shell" data-composer={composer}>
       <header className="topbar" data-scrolled={scrolled}>
         <span className="tb-group">
           <button type="button" className="icon-btn tap" aria-label={t(lang, "language")} onClick={() => setSheet("lang")}><Globe size={20} aria-hidden /></button>
           {ra.available && <button type="button" className="icon-btn tap" aria-label={t(lang, "listen")} aria-pressed={ra.state.status !== "idle"} data-on={ra.state.status !== "idle"} onClick={readPage}><Volume2 size={20} aria-hidden /></button>}
         </span>
         <span className="topbar-title" aria-hidden>{t(lang, "appTitle")}</span>
-        <a className="sos tap" href="tel:108" aria-label={t(lang, "emergencyCall")}><span className="sos-dot"><Phone size={13} aria-hidden /></span>108</a>
+        <a className="sos tap" href="tel:108" aria-label={t(lang, "emergencyCall")}><Phone size={15} aria-hidden />108</a>
       </header>
 
       <main className="col" id="main">
         <h1 className="sr-only" data-noread>{t(lang, "appTitle")}</h1>
         <div className="stack enter" key={gate ? `em-${sel}` : `${view}-${sel}`}>
-          {said && <p className="said"><span className="said-k">{t(lang, "said")}</span>{said}</p>}
+          {said && !showIdle && <p className="said" aria-label={t(lang, "said")}>{said}</p>}
           {notice && <p className="callout callout-info" role="status" style={{ marginTop: 0 }}><Info size={18} aria-hidden /><span>{notice}</span></p>}
 
           {gate && <EmergencyCard gate={gate} lang={lang} online={online} />}
@@ -238,14 +239,14 @@ export function App() {
           {view === "loading" && (
             <>
               <div className="thinking" role="status"><span className="dots" aria-hidden><i /><i /><i /></span>{t(lang, "thinking")}</div>
-              <div className="card skel" aria-hidden><i className="k1" /><i className="k2" /><i className="k3" /><i className="k4" /><i className="k1" /></div>
+              <div className="card skel" aria-hidden><i className="k1" /><i className="k2" /><i className="k3" /><i className="k4" /></div>
             </>
           )}
 
           {view === "error" && (
             <div className="card">
               <p>{errMsg ?? t(lang, "error")}</p>
-              {last.current && loc && <button type="button" className="btn btn-dark tap" style={{ marginTop: 16, width: "100%" }} onClick={() => fetchRec(last.current!.services, last.current!.urgency, loc)}>{t(lang, "retry")}</button>}
+              {last.current && loc && <button type="button" className="btn btn-primary tap" style={{ marginTop: 16, width: "100%" }} onClick={() => fetchRec(last.current!.services, last.current!.urgency, loc)}>{t(lang, "retry")}</button>}
             </div>
           )}
           {view === "idle" && errMsg && gate && <p className="notes">{errMsg}</p>}
@@ -253,7 +254,7 @@ export function App() {
           {view === "pickcare" && (
             <>
               <div style={{ padding: "0 4px" }}>
-                <h2 className="title" data-read>{t(lang, "pickCare")}</h2>
+                <h2 className="title">{t(lang, "pickCare")}</h2>
                 {careNote && <p className="muted" style={{ marginTop: 6 }}>{careNote}</p>}
               </div>
               <div className="list">
@@ -270,29 +271,34 @@ export function App() {
             </>
           )}
 
-          {view === "needplace" && <div className="card">{placeForm}</div>}
+          {view === "needplace" && <div className="card where"><p className="label"><MapPin size={17} aria-hidden />{t(lang, "whereLabel")}</p>{placeForm}</div>}
 
           {showIdle && (
             <>
-              <div style={{ padding: "4px 4px 0" }}>
+              <div style={{ padding: "4px 4px 2px" }}>
                 <p className="eyebrow">{t(lang, "appTitle")}</p>
-                <p className="hero-title" data-read>{t(lang, "headline")}. <span>{t(lang, "sub")}</span></p>
+                <h2 className="hero-title">{t(lang, "describe")}</h2>
+                <p className="hero-sub">{t(lang, "sub")}</p>
               </div>
 
-              {canMic && (
-                <div className="orb-wrap">
-                  <button type="button" className="orb tap" data-noread data-live={listening} aria-label={listening ? t(lang, "stop") : t(lang, "mic")} onClick={toggleMic}>
-                    {listening ? <Square aria-hidden /> : <Mic aria-hidden />}
-                  </button>
-                  <p className="orb-label">{listening ? t(lang, "listening") : t(lang, "tapToSpeak")}<small>{t(lang, "orType")}</small></p>
+              <form className="card ask" onSubmit={(e) => { e.preventDefault(); void run(text); }}>
+                <label htmlFor="ask" className="sr-only">{t(lang, "describe")}</label>
+                <textarea id="ask" value={text} onChange={(e) => setText(e.target.value)} placeholder={t(lang, "describePh")} enterKeyHint="send" rows={3}
+                  onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); void run(text); } }} />
+                {(listening || caption) && <p className="live" aria-live="polite">{listening && !caption ? t(lang, "listening") : caption}</p>}
+                <div className="ask-bar">
+                  {canMic
+                    ? <button type="button" className="mic-btn tap" data-live={listening} aria-label={listening ? t(lang, "stop") : t(lang, "mic")} onClick={toggleMic}>{listening ? <Square size={18} aria-hidden /> : <Mic size={22} aria-hidden />}</button>
+                    : <span />}
+                  <button type="submit" className="btn btn-primary tap" disabled={!text.trim()}>{t(lang, "find")}<ArrowRight size={18} aria-hidden /></button>
                 </div>
-              )}
+              </form>
 
-              <div className="card">
+              <div className="card where">
+                <p className="label"><MapPin size={17} aria-hidden />{t(lang, "whereLabel")}</p>
                 {loc ? (
-                  <div className="loc">
-                    <span className="loc-ico"><MapPin size={20} aria-hidden /></span>
-                    <div style={{ minWidth: 0 }}><div className="loc-k">{t(lang, "yourLocation")}</div><div className="loc-v">{loc.label ? <span lang="en">{loc.label}</span> : t(lang, "currentLocation")}</div></div>
+                  <div className="loc" style={{ gridTemplateColumns: "1fr auto" }}>
+                    <div className="loc-v">{loc.label ? <span lang="en">{loc.label}</span> : t(lang, "currentLocation")}</div>
                     <button type="button" className="link" onClick={() => { setLoc(null); setNearby([]); }}>{t(lang, "change")}</button>
                   </div>
                 ) : placeForm}
@@ -300,47 +306,44 @@ export function App() {
 
               {nearby.length > 0 && (
                 <>
-                  <h2 className="section-label">{t(lang, "nearYou")}</h2>
+                  <h2 className="section-label" style={{ marginTop: 8 }}>{t(lang, "nearYou")}</h2>
                   <div className="tiles">
-                    {nearby.slice(0, 6).map((s) => (
-                      <button key={s.id} type="button" className="tile tap" data-read data-read-text={`${svcLabel(s.id, lang)}${s.nearestKm != null ? `, ${Math.round(s.nearestKm)} ${t(lang, "km")}` : ""}`} onClick={() => loc && fetchRec([s.id], s.urgent ? "urgent" : "routine", loc)}>
+                    {nearby.slice(0, 4).map((s) => (
+                      <button key={s.id} type="button" className="tile tap" onClick={() => loc && fetchRec([s.id], s.urgent ? "urgent" : "routine", loc)}>
                         <span className="tile-name">{svcLabel(s.id, lang)}</span>
                         <span className="tile-num">{s.nearestKm != null ? <>{Math.round(s.nearestKm)}<small>{t(lang, "km")}</small></> : "–"}</span>
                       </button>
                     ))}
                   </div>
-                  <p className="tiny" style={{ padding: "0 6px" }} data-read>{t(lang, "nearYouNote")}</p>
                 </>
               )}
-              <p className="foot">{canMic ? `${t(lang, "voiceNote")} ` : `${t(lang, "voiceUnavailable")} `}{t(lang, "notAffiliated")}</p>
+              <p className="foot">{t(lang, "notAffiliated")}</p>
             </>
           )}
 
           {view === "result" && rec && picked && (
             <>
-              {rec.notes.length > 0 && <div className="notes">{rec.notes.map((n) => <p key={n.text} data-read>{say(n, lang)}</p>)}</div>}
-              {rec.confidence === "several_similar" && <p className="callout callout-info" style={{ marginTop: 0 }}><Info size={18} aria-hidden /><span data-read>{t(lang, "mixWarning")}</span></p>}
-              <Slip r={picked} scale={scale} lang={lang} services={rec.services} onWhy={() => setSheet("why")} onSpeak={readSlip} />
-              <button type="button" className="btn tap" style={{ background: "var(--surface)", boxShadow: "var(--shadow)" }} onClick={() => setSheet("prefs")}>
-                <SlidersHorizontal size={18} aria-hidden />{t(lang, "prefs")}
-              </button>
+              {rec.notes.length > 0 && <div className="notes">{rec.notes.map((n) => <p key={n.text}>{say(n, lang)}</p>)}</div>}
+              <Slip r={picked} lang={lang} services={rec.services} onWhy={() => setSheet("why")} onSpeak={readSlip} />
               {rec.results.length > 1 && (
                 <>
-                  <h2 className="section-label">{t(lang, "otherOptions")}</h2>
+                  <div className="list-head">
+                    <h2 className="section-label" style={{ padding: 0 }}>{t(lang, "otherOptions")}</h2>
+                    <button type="button" className="link" onClick={() => setSheet("prefs")}><SlidersHorizontal size={16} aria-hidden />{t(lang, "prefs")}</button>
+                  </div>
                   <div className="list">
                     {rec.results.map((r, i) => i === sel ? null : (
-                      <button key={r.id} type="button" className="list-row" data-read data-read-text={`${r.name}, ${r.etaMinutes} ${t(lang, "min")}, ${r.distanceKm} ${t(lang, "km")}`} onClick={() => { setSel(i); window.scrollTo({ top: 0, behavior: "smooth" }); }}>
-                        <span className="row-title" lang="en">{r.name}</span>
-                        <span className="row-meta">{r.etaMinutes} {t(lang, "min")}<small>{r.distanceKm} {t(lang, "km")}</small></span>
+                      <button key={r.id} type="button" className="list-row" onClick={() => { setSel(i); window.scrollTo({ top: 0, behavior: "smooth" }); }}>
+                        <span className="row-title"><span lang="en">{r.name}</span>{r.registry?.tier === "verified" && <BadgeCheck size={15} aria-label={t(lang, "registryListed")} />}</span>
+                        <span className="row-meta">{r.etaMinutes} {t(lang, "min")}</span>
                         <ChevronRight size={16} className="chev" aria-hidden />
-                        <span className="row-sub">{[r.tags.includes("fastest") && t(lang, "fastest"), r.tags.includes("most_trusted") && t(lang, "mostTrusted"), r.registry?.tier === "verified" && t(lang, "registryListed"), !r.solid && t(lang, "weakNote")].filter(Boolean).join(" · ")}</span>
+                        <span className="row-sub">{r.distanceKm} {t(lang, "km")}{!r.solid ? ` · ${t(lang, "sureLow")}` : ""}</span>
                       </button>
                     ))}
                   </div>
                 </>
               )}
-              {rec.coverage.context.length > 0 && <div className="notes">{rec.coverage.context.map((c) => <p key={c.text} data-read>{say(c, lang)}</p>)}</div>}
-              <p className="foot">{t(lang, "estimate")} {t(lang, "notAffiliated")}</p>
+              <p className="foot">{t(lang, "notAffiliated")}</p>
             </>
           )}
           {view === "result" && rec && !picked && (
@@ -361,22 +364,24 @@ export function App() {
           <button type="button" className="ra-btn tap" onClick={ra.stop} aria-label={t(lang, "stopReading")}><X size={18} aria-hidden /></button>
         </div>
       )}
-      
-      <div className="composer">
-        {(listening || caption) && <p className="caption" aria-live="polite">{listening && !caption ? t(lang, "listening") : caption}</p>}
-        <form className="capsule" onSubmit={(e) => { e.preventDefault(); void run(text); }}>
-          <Search size={20} aria-hidden />
-          <input value={text} onChange={(e) => setText(e.target.value)} placeholder={t(lang, "placeholder")} aria-label={t(lang, "placeholder")} enterKeyHint="send" autoComplete="off" />
-          {text.trim()
-            ? <button type="submit" className="cap-btn tap" data-kind="send" aria-label={t(lang, "send")}><ArrowUp size={22} strokeWidth={2.4} aria-hidden /></button>
-            : canMic
-              ? <button type="button" className="cap-btn tap" data-live={listening} aria-label={listening ? t(lang, "stop") : t(lang, "mic")} onClick={toggleMic}>{listening ? <Square size={18} aria-hidden /> : <Mic size={22} aria-hidden />}</button>
-              : <button type="submit" className="cap-btn" data-kind="send" aria-label={t(lang, "send")} disabled style={{ opacity: .35 }}><ArrowUp size={22} aria-hidden /></button>}
-        </form>
-      </div>
+
+      {composer && (
+        <div className="composer">
+          {(listening || caption) && <p className="caption" aria-live="polite">{listening && !caption ? t(lang, "listening") : caption}</p>}
+          <form className="capsule" onSubmit={(e) => { e.preventDefault(); void run(text); }}>
+            <Search size={19} aria-hidden />
+            <input value={text} onChange={(e) => setText(e.target.value)} placeholder={t(lang, "placeholder")} aria-label={t(lang, "placeholder")} enterKeyHint="send" autoComplete="off" />
+            {text.trim()
+              ? <button type="submit" className="cap-btn tap" data-kind="send" aria-label={t(lang, "send")}><ArrowUp size={21} strokeWidth={2.4} aria-hidden /></button>
+              : canMic
+                ? <button type="button" className="cap-btn tap" data-live={listening} aria-label={listening ? t(lang, "stop") : t(lang, "mic")} onClick={toggleMic}>{listening ? <Square size={18} aria-hidden /> : <Mic size={21} aria-hidden />}</button>
+                : <button type="submit" className="cap-btn" data-kind="send" aria-label={t(lang, "send")} disabled style={{ opacity: .35 }}><ArrowUp size={21} aria-hidden /></button>}
+          </form>
+        </div>
+      )}
 
       {sheet === "lang" && <LangSheet lang={lang} onClose={() => setSheet(null)} onListen={readSheet} onPick={(l) => { chooseLang(l); setSheet(null); }} />}
-      {sheet === "why" && picked && rec && <WhySheet r={picked} lang={lang} onClose={() => setSheet(null)} trafficNote={rec.traffic.note} onListen={readSheet} />}
+      {sheet === "why" && picked && rec && <WhySheet r={picked} lang={lang} onClose={() => setSheet(null)} trafficNote={rec.traffic.note} context={rec.coverage.context} onListen={readSheet} />}
       {sheet === "prefs" && (
         <PrefSheet lang={lang} prefs={prefs} card={card} onClose={() => setSheet(null)} onListen={readSheet}
           onApply={(p, c) => { setPrefs(p); setCard(c); setPrefsTouched(true); setSheet(null); if (last.current && loc) void fetchRec(last.current.services, last.current.urgency, loc, p, c, true); }} />
@@ -390,22 +395,17 @@ function PlaceControls({ lang, busy, msg, place, setPlace, onDevice, onLookup, c
   candidates: Candidate[]; onPick: (c: Candidate) => void;
 }) {
   return (
-    <div>
-      <div className="loc">
-        <span className="loc-ico"><MapPin size={20} aria-hidden /></span>
-        <div><div className="loc-k">{t(lang, "yourLocation")}</div><div style={{ fontWeight: 600, lineHeight: 1.3 }}>{t(lang, "whereAreYou")}</div></div>
-        <span />
-      </div>
-      <button type="button" className="btn btn-accent tap" style={{ width: "100%", marginTop: 16 }} onClick={onDevice} disabled={busy}>
-        <LocateFixed size={18} aria-hidden />{busy ? t(lang, "locating") : t(lang, "useLocation")}
-      </button>
+    <div style={{ display: "grid", gap: 10 }}>
       <form className="inline-form" onSubmit={(e) => { e.preventDefault(); onLookup(place); }}>
-        <input className="field-input" value={place} onChange={(e) => setPlace(e.target.value)} placeholder={t(lang, "placeInput")} aria-label={t(lang, "placeInput")} inputMode="text" autoComplete="off" />
-        <button type="submit" className="btn btn-dark tap" style={{ minHeight: 52, padding: "0 20px" }} disabled={busy || !place.trim()}>{t(lang, "go")}</button>
+        <input className="field-input" value={place} onChange={(e) => setPlace(e.target.value)} placeholder={t(lang, "placeShort")} aria-label={t(lang, "placeInput")} inputMode="text" autoComplete="off" />
+        <button type="submit" className="btn btn-soft tap" style={{ minHeight: 50, padding: "0 18px" }} disabled={busy || !place.trim()}>{t(lang, "go")}</button>
       </form>
-      {msg && <p className="small" style={{ marginTop: 10 }} role="status">{msg}</p>}
+      <button type="button" className="link" style={{ justifySelf: "start", display: "inline-flex", alignItems: "center", gap: 6, padding: "4px 2px", minHeight: 40 }} onClick={onDevice} disabled={busy}>
+        <LocateFixed size={16} aria-hidden />{busy ? t(lang, "locating") : t(lang, "useLocation")}
+      </button>
+      {msg && <p className="small" role="status">{msg}</p>}
       {candidates.length > 0 && (
-        <div className="list" style={{ marginTop: 12, boxShadow: "none", background: "var(--surface-2)" }}>
+        <div className="list" style={{ boxShadow: "none", background: "var(--surface-2)" }}>
           {candidates.map((c) => (
             <button key={`${c.label}${c.state}`} type="button" className="list-row" onClick={() => onPick(c)}>
               <span className="row-title">{c.label}</span><span /><ChevronRight size={16} className="chev" aria-hidden />
