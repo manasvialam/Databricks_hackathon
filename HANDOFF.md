@@ -74,7 +74,7 @@ Done and tested: ranking engine, triage and emergency gate (English, Hindi, Hing
 
 ## 10. Databricks deployment (done 2026-11-22)
 
-Workspace `https://dbc-43fc181d-51b6.cloud.databricks.com` (Free Edition), CLI login via `databricks auth login`.
+Workspace `https://dbc-43fc181d-51b6.cloud.databricks.com` (workspace id 7474656106086877, Free Edition), CLI login via `databricks auth login`.
 
 - **Data:** schema `workspace.facility_finder`; volume `raw` (parquet and snapshot); tables `fac_final`, `registry_match`, `facilities_serving`, `facility_claims`; function `find_facilities(service, lat, lon, max_km)`. SQL in `databricks/sql/`, runner `databricks/run_sql.py` (uses the CLI login; warehouse `cf80af6a5a0a8799`). Parquet is loaded from microsecond-timestamp copies (`scripts/out/*.us.parquet`) because Databricks rejects nanosecond timestamps.
 - **App:** `facility-finder` at https://facility-finder-7474656106086877.aws.databricksapps.com (sign-in with Databricks required). Source `web/` with `web/app.yaml`; model endpoint `databricks-meta-llama-3-3-70b-instruct` (resource `llm`, CAN_QUERY). `/api/health` reports tier 2 (snapshot data + model); the warehouse is not used by the app yet (tier 1 not implemented). Redeploy: from `web/`, `databricks sync . /Workspace/Users/<you>/facility-finder` then `databricks apps deploy facility-finder --source-code-path /Workspace/Users/<you>/facility-finder` (in Git Bash set `MSYS_NO_PATHCONV=1`).
