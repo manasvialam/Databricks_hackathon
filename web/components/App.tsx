@@ -1,6 +1,6 @@
 "use client";
 import { useCallback, useEffect, useRef, useState } from "react";
-import { ArrowRight, ArrowUp, BadgeCheck, ChevronRight, Globe, Info, LocateFixed, MapPin, Mic, Pause, Phone, Play, Search, SkipBack, SkipForward, SlidersHorizontal, Square, Volume2, X } from "lucide-react";
+import { Ambulance, ArrowUp, Baby, BadgeCheck, BedDouble, ChevronDown, ChevronLeft, ChevronRight, Droplets, Globe, HeartPulse, Info, MapPin, Mic, Pause, Phone, Play, Ribbon, Search, SkipBack, SkipForward, SlidersHorizontal, Square, Volume2, X } from "lucide-react";
 import { LANGS, hasKey, isLang, say, speechLang, svcPlain, t, type Lang } from "@/lib/i18n";
 import { checkRedFlags, type RedFlagResult } from "@/lib/triage/redflags";
 import { PERSONA_BY_ID } from "@/lib/preferences";
@@ -10,9 +10,10 @@ import type { NearbyHospital, NearbyService } from "@/lib/nearby";
 import { SERVICES } from "@/lib/services";
 import { canListen, listen, stopSpeaking, type Listener } from "@/lib/client/speech";
 import { useReadAlong } from "@/lib/client/readalong";
+import { useHistorySync, type NavEntry } from "@/lib/client/nav";
 import { Slip, svcLabel } from "./Slip";
-import { EmergencyCard, HospitalSheet, LangSheet, PrefSheet, WhySheet, type CardAnswer } from "./Sheets";
-import { HospitalList } from "./Hospitals";
+import { EmergencyCard, HospitalWhySheet, LangSheet, LocSheet, PrefSheet, WhySheet, type CardAnswer, type PlaceChoice } from "./Sheets";
+import { HospitalCard, HospitalList } from "./Hospitals";
 import { Tx } from "./Tx";
 
 interface Loc { lat: number; lon: number; label: string | null }
@@ -36,11 +37,9 @@ export function App() {
   const [loc, setLoc] = useState<Loc | null>(null);
   const [locBusy, setLocBusy] = useState(false);
   const [locMsg, setLocMsg] = useState<string | null>(null);
-  const [place, setPlace] = useState("");
   const [candidates, setCandidates] = useState<Candidate[]>([]);
   const [, setNearby] = useState<NearbyService[]>([]);
   const [hospitals, setHospitals] = useState<NearbyHospital[]>([]);
-  const [openH, setOpenH] = useState<NearbyHospital | null>(null);
   const [text, setText] = useState("");
   const [said, setSaid] = useState<string | null>(null);
   const [view, setView] = useState<View>("idle");
@@ -50,7 +49,8 @@ export function App() {
   const [online, setOnline] = useState(true);
   const [listening, setListening] = useState(false);
   const [caption, setCaption] = useState("");
-  const [sheet, setSheet] = useState<null | "why" | "prefs" | "lang">(null);
+  const [sheet, setSheet] = useState<null | "why" | "prefs" | "lang" | "loc" | "hwhy">(null);
+  const [recent, setRecent] = useState<PlaceChoice[]>([]);
   const [scrolled, setScrolled] = useState(false);
   const [errMsg, setErrMsg] = useState<string | null>(null);
   const [careNote, setCareNote] = useState<string | null>(null);
@@ -74,6 +74,7 @@ export function App() {
     const phone = (navigator.languages ?? [navigator.language]).map((l) => l.toLowerCase().split("-")[0]).find(isLang);
     if (isLang(saved)) setLang(saved); else if (phone) setLang(phone);
     setCanMic(canListen());
+    try { const r = JSON.parse(safeGet("recentLocs") ?? "[]"); if (Array.isArray(r)) setRecent(r.filter((x) => x && typeof x.label === "string" && Number.isFinite(x.lat) && Number.isFinite(x.lon)).slice(0, 3)); } catch { /* no recent places */ }
     setOnline(navigator.onLine);
     const on = () => setOnline(true), off = () => setOnline(false);
     window.addEventListener("online", on); window.addEventListener("offline", off);
@@ -117,7 +118,8 @@ export function App() {
   }, [prefs, card, prefsTouched, lang]);
 
   const setLocation = useCallback((l: Loc) => {
-    setLoc(l); setLocMsg(null); setCandidates([]); setPlace("");
+    setLoc(l); setLocMsg(null); setCandidates([]); setSheet((s) => (s === "loc" ? null : s));
+    if (l.label) setRecent((r) => { const n = [{ label: l.label as string, lat: l.lat, lon: l.lon }, ...r.filter((x) => x.label !== l.label)].slice(0, 3); safeSet("recentLocs", JSON.stringify(n)); return n; });
     if (pending.current) { const p = pending.current; pending.current = null; void fetchRec(p.services, p.urgency, l); }
   }, [fetchRec]);
 
@@ -164,8 +166,8 @@ export function App() {
       if (!at && r.location) { at = { lat: r.location.lat, lon: r.location.lon, label: r.location.matched }; setLoc(at); }
       const services = tr.emergency && !tr.services.length ? tr.emergency.services.slice(0, 2) : tr.services;
       const urgency: Urgency = tr.emergency ? "emergency" : tr.urgency;
-      if (!services.length) { setCareNote(tr.followUps[0] ?? null); setView(g || tr.emergency ? "idle" : "pickcare"); return; }
-      if (!at) { pending.current = { services, urgency }; setView("needplace"); return; }
+      if (!services.length) { setCareNote(tr.followUps[0] ?? null); setSel(0); setView(g || tr.emergency ? "idle" : "pickcare"); if (!at && !g && !tr.emergency) setSheet("loc"); return; }
+      if (!at) { pending.current = { services, urgency }; setView("needplace"); setSheet("loc"); return; }
       await fetchRec(services, urgency, at);
     } catch {
       setErrMsg(online ? t(lang, "error") : t(lang, "offline"));
@@ -191,6 +193,20 @@ export function App() {
     if (l) { listener.current = l; setListening(true); } else setNotice(t(lang, "voiceUnavailable"));
   }, [listening, lang, run, online]);
 
+  // browser/phone back, swipe-back and the back arrow walk through screens, the chosen hospital and open sheets
+  const lastScreen = useRef<View>("idle");
+  if (view !== "loading") lastScreen.current = view;
+  const recRef = useRef(rec); recRef.current = rec;
+  const hospitalsRef = useRef(hospitals); hospitalsRef.current = hospitals;
+  const nav = useHistorySync(
+    { v: ((view === "loading" ? lastScreen.current : view) === "needplace" ? "idle" : (view === "loading" ? lastScreen.current : view)), sel, ov: sheet, g: !!gate },
+    (e: NavEntry) => {
+      setSel(e.sel);
+      setView(e.v === "result" && !recRef.current ? "idle" : (e.v as View));
+      setSheet(e.ov === "why" || e.ov === "prefs" || e.ov === "lang" || e.ov === "loc" || e.ov === "hwhy" ? e.ov : null);
+      if (!e.g) setGate(null);
+    },
+  );
   const picked = rec?.results[sel] ?? null;
   const showIdle = view === "idle" && !gate;
 
@@ -208,7 +224,7 @@ export function App() {
     setNotice(ok ? null : t(lang, ra.available ? "readingNothing" : "ttsUnavailable"));
   };
   // stop reading when the language, the chosen hospital or the open sheet changes; an emergency card is read out loud as soon as it appears
-  useEffect(() => { ra.stop(); }, [lang, sel, sheet, openH]); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => { ra.stop(); }, [lang, sel, sheet]); // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => { if (ra.state.skipped) setNotice(t(lang, "readingSkipped")); }, [ra.state.skipped]); // eslint-disable-line react-hooks/exhaustive-deps
   const emergencyRead = useRef<RedFlagResult | null>(null);
   useEffect(() => {
@@ -218,23 +234,37 @@ export function App() {
     return () => clearTimeout(id);
   }, [gate]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  const pickPlace = (c: Candidate) => setLocation({ lat: c.lat, lon: c.lon, label: `${c.district}, ${c.state}` });
-  const placeForm = (
-    <PlaceControls lang={lang} busy={locBusy} msg={locMsg} place={place} setPlace={setPlace} onDevice={useDevice} onLookup={lookupPlace}
-      candidates={candidates} onPick={pickPlace} />
-  );
+  const pickPlace = (c: PlaceChoice) => setLocation({ lat: c.lat, lon: c.lon, label: c.state ? `${c.label}, ${c.state}` : c.label });
+  const quick: { id: ServiceId; icon: typeof Ambulance; key: "quickEmergency" | "quickPregnancy" | "quickDialysis" | "quickHeart" | "quickCancer" | "quickICU" }[] = [
+    { id: "trauma_emergency", icon: Ambulance, key: "quickEmergency" }, { id: "obstetrics", icon: Baby, key: "quickPregnancy" },
+    { id: "dialysis", icon: Droplets, key: "quickDialysis" }, { id: "cath_lab", icon: HeartPulse, key: "quickHeart" },
+    { id: "oncology", icon: Ribbon, key: "quickCancer" }, { id: "icu", icon: BedDouble, key: "quickICU" },
+  ];
+  const openHospital = (h: NearbyHospital) => {
+    const i = hospitals.findIndex((x) => x.id === h.id);
+    if (i < 0) return;
+    setSel(i); setView("pickcare"); window.scrollTo({ top: 0, behavior: "smooth" });
+  };
+  const startService = (id: ServiceId, urgent: boolean) => {
+    const urgency: Urgency = urgent ? "urgent" : "routine";
+    if (loc) void fetchRec([id], urgency, loc); else { pending.current = { services: [id], urgency }; setView("needplace"); setSheet("loc"); }
+  };
 
   const composer = view !== "idle" || !!gate;
 
   return (
     <div className="shell" data-composer={composer}>
       <header className="topbar" data-scrolled={scrolled}>
+        {(view !== "idle" || gate) && <button type="button" className="icon-btn tap" aria-label={t(lang, "back")} onClick={nav.back}><ChevronLeft size={22} aria-hidden /></button>}
+        <button type="button" className="locbtn tap" onClick={() => setSheet("loc")} aria-label={t(lang, "locSheetTitle")}>
+          <span className="locbtn-k">{t(lang, "yourLocation")}</span>
+          <span className="locbtn-v">{loc ? (loc.label ? <span lang="en">{loc.label}</span> : t(lang, "currentLocation")) : t(lang, "setLocationLabel")}<ChevronDown size={16} aria-hidden /></span>
+        </button>
         <span className="tb-group">
-          <button type="button" className="icon-btn tap" aria-label={t(lang, "language")} onClick={() => setSheet("lang")}><Globe size={20} aria-hidden /></button>
-          {ra.available && <button type="button" className="icon-btn tap" aria-label={t(lang, "listen")} aria-pressed={ra.state.status !== "idle"} data-on={ra.state.status !== "idle"} onClick={readPage}><Volume2 size={20} aria-hidden /></button>}
+          {ra.available && <button type="button" className="icon-btn tap" aria-label={t(lang, "listen")} aria-pressed={ra.state.status !== "idle"} data-on={ra.state.status !== "idle"} onClick={readPage}><Volume2 size={19} aria-hidden /></button>}
+          <button type="button" className="icon-btn tap" aria-label={t(lang, "language")} onClick={() => setSheet("lang")}><Globe size={19} aria-hidden /></button>
+          <a className="sos tap" href="tel:108" aria-label={t(lang, "emergencyCall")}><Phone size={15} aria-hidden />108</a>
         </span>
-        <span className="topbar-title" aria-hidden>{t(lang, "appTitle")}</span>
-        <a className="sos tap" href="tel:108" aria-label={t(lang, "emergencyCall")}><Phone size={15} aria-hidden />108</a>
       </header>
 
       <main className="col" id="main">
@@ -260,61 +290,73 @@ export function App() {
           )}
           {view === "idle" && errMsg && gate && <p className="notes">{errMsg}</p>}
 
-          {view === "pickcare" && (
+          {view === "pickcare" && hospitals[sel] && (
+            <>
+              {careNote && <p className="muted" style={{ padding: "0 6px" }}>{careNote}</p>}
+              <HospitalCard h={hospitals[sel]} lang={lang} need={said} onWhy={() => setSheet("hwhy")} onSpeak={readSlip} />
+              <div style={{ padding: "6px 6px 0" }}><h2 className="section-label" style={{ padding: 0 }}>{t(lang, "hospitalsNear")}</h2></div>
+              <HospitalList hospitals={hospitals.filter((_, i) => i !== sel)} lang={lang} onOpen={openHospital} />
+              <p className="foot">{t(lang, "notAffiliated")}</p>
+            </>
+          )}
+          {view === "pickcare" && !hospitals[sel] && (
             <>
               <div style={{ padding: "0 4px" }}>
-                <h2 className="title">{hospitals.length ? t(lang, "hospitalsNear") : t(lang, "pickCare")}</h2>
+                <h2 className="title">{t(lang, "pickCare")}</h2>
                 {careNote && <p className="muted" style={{ marginTop: 6 }}>{careNote}</p>}
               </div>
-              {hospitals.length > 0
-                ? <HospitalList hospitals={hospitals} lang={lang} onOpen={setOpenH} />
-                : (
-                  <div className="list">
-                    {SERVICES.map((s) => (
-                      <button key={s.id} type="button" className="list-row" onClick={() => {
-                        const urgency: Urgency = s.urgentByNature ? "urgent" : "routine";
-                        if (loc) void fetchRec([s.id], urgency, loc); else { pending.current = { services: [s.id], urgency }; setView("needplace"); }
-                      }}>
-                        <span className="row-title">{svcLabel(s.id, lang)}</span><span /><ChevronRight size={16} className="chev" aria-hidden />
-                        <span className="row-sub">{svcPlain(s.id, lang)}</span>
-                      </button>
-                    ))}
-                  </div>
-                )}
+              <div className="list">
+                {SERVICES.map((s) => (
+                  <button key={s.id} type="button" className="list-row" onClick={() => {
+                    const urgency: Urgency = s.urgentByNature ? "urgent" : "routine";
+                    if (loc) void fetchRec([s.id], urgency, loc); else { pending.current = { services: [s.id], urgency }; setView("needplace"); setSheet("loc"); }
+                  }}>
+                    <span className="row-title">{svcLabel(s.id, lang)}</span><span /><ChevronRight size={16} className="chev" aria-hidden />
+                    <span className="row-sub">{svcPlain(s.id, lang)}</span>
+                  </button>
+                ))}
+              </div>
             </>
           )}
 
-          {view === "needplace" && <div className="card where"><p className="label"><MapPin size={17} aria-hidden />{t(lang, "whereLabel")}</p>{placeForm}</div>}
+          {view === "needplace" && (
+            <div className="card hint">
+              <p>{t(lang, "chooseWhereHint")}</p>
+              <button type="button" className="btn btn-primary tap" style={{ marginTop: 14, width: "100%" }} onClick={() => setSheet("loc")}><MapPin size={18} aria-hidden />{t(lang, "locSheetTitle")}</button>
+            </div>
+          )}
 
           {showIdle && (
             <>
-              <div style={{ padding: "4px 4px 2px" }}>
-                <p className="eyebrow">{t(lang, "appTitle")}</p>
-                <h2 className="hero-title">{t(lang, "describe")}</h2>
+              <div className="hero">
+                <h2 className="hero-title" data-read>{t(lang, "describe")}</h2>
                 <p className="hero-sub">{t(lang, "sub")}</p>
               </div>
 
-              <form className="card ask" onSubmit={(e) => { e.preventDefault(); void run(text); }}>
-                <label htmlFor="ask" className="sr-only">{t(lang, "describe")}</label>
-                <textarea id="ask" value={text} onChange={(e) => setText(e.target.value)} placeholder={t(lang, "describePh")} enterKeyHint="send" rows={3}
-                  onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); void run(text); } }} />
-                {(listening || caption) && <p className="live" aria-live="polite">{listening && !caption ? t(lang, "listening") : caption}</p>}
-                <div className="ask-bar">
-                  {canMic
-                    ? <button type="button" className="mic-btn tap" data-live={listening} aria-label={listening ? t(lang, "stop") : t(lang, "mic")} onClick={toggleMic}>{listening ? <Square size={18} aria-hidden /> : <Mic size={22} aria-hidden />}</button>
-                    : <span />}
-                  <button type="submit" className="btn btn-primary tap" disabled={!text.trim()}>{t(lang, "find")}<ArrowRight size={18} aria-hidden /></button>
+              {canMic && (
+                <div className="orb-wrap">
+                  <button type="button" className="orb tap" data-noread data-live={listening} aria-label={listening ? t(lang, "stop") : t(lang, "mic")} onClick={toggleMic}>
+                    <i className="ring r1" aria-hidden /><i className="ring r2" aria-hidden /><i className="ring r3" aria-hidden />
+                    <span className="orb-core">{listening ? <Square size={34} aria-hidden /> : <Mic size={44} strokeWidth={1.6} aria-hidden />}</span>
+                  </button>
+                  <p className="orb-label" aria-live="polite">{listening ? (caption || t(lang, "listening")) : t(lang, "tapToSpeak")}</p>
                 </div>
+              )}
+
+              <form className="typebar" onSubmit={(e) => { e.preventDefault(); void run(text); }}>
+                <Search size={19} aria-hidden />
+                <textarea id="ask" rows={1} value={text} onChange={(e) => setText(e.target.value)} placeholder={t(lang, "typeProblem")} aria-label={t(lang, "describe")} enterKeyHint="send"
+                  onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); void run(text); } }} />
+                <button type="submit" className="cap-btn tap" data-kind="send" data-show={!!text.trim()} aria-label={t(lang, "send")} disabled={!text.trim()}><ArrowUp size={21} strokeWidth={2.4} aria-hidden /></button>
               </form>
 
-              <div className="card where">
-                <p className="label"><MapPin size={17} aria-hidden />{t(lang, "whereLabel")}</p>
-                {loc ? (
-                  <div className="loc" style={{ gridTemplateColumns: "1fr auto" }}>
-                    <div className="loc-v">{loc.label ? <span lang="en">{loc.label}</span> : t(lang, "currentLocation")}</div>
-                    <button type="button" className="link" onClick={() => { setLoc(null); setNearby([]); setHospitals([]); }}>{t(lang, "change")}</button>
-                  </div>
-                ) : placeForm}
+              <div className="quick" role="group" aria-label={t(lang, "pickCare")}>
+                {quick.map(({ id, icon: Icon, key }) => (
+                  <button key={id} type="button" className="quick-item tap" onClick={() => startService(id, id === "trauma_emergency" || id === "obstetrics")}>
+                    <span className="quick-ico"><Icon size={24} strokeWidth={1.7} aria-hidden /></span>
+                    <span className="quick-k">{t(lang, key)}</span>
+                  </button>
+                ))}
               </div>
 
               {hospitals.length > 0 && (
@@ -323,7 +365,7 @@ export function App() {
                     <h2 className="section-label" style={{ padding: 0 }}>{t(lang, "hospitalsNear")}</h2>
                     <p className="tiny" style={{ marginTop: 2 }}>{t(lang, "hospitalsNote")}</p>
                   </div>
-                  <HospitalList hospitals={hospitals} lang={lang} onOpen={setOpenH} />
+                  <HospitalList hospitals={hospitals} lang={lang} onOpen={openHospital} />
                 </>
               )}
               <p className="foot">{t(lang, "notAffiliated")}</p>
@@ -389,40 +431,14 @@ export function App() {
         </div>
       )}
 
-      {openH && <HospitalSheet h={openH} lang={lang} onClose={() => setOpenH(null)} onListen={readSheet} />}
+      {sheet === "hwhy" && hospitals[sel] && <HospitalWhySheet h={hospitals[sel]} lang={lang} onClose={() => setSheet(null)} onListen={readSheet} />}
+      {sheet === "loc" && <LocSheet lang={lang} busy={locBusy} msg={locMsg} candidates={candidates} recent={recent} hint={view === "needplace" ? t(lang, "chooseWhereHint") : null}
+        onDevice={useDevice} onLookup={lookupPlace} onPick={pickPlace} onClose={() => setSheet(null)} onListen={readSheet} />}
       {sheet === "lang" && <LangSheet lang={lang} onClose={() => setSheet(null)} onListen={readSheet} onPick={(l) => { chooseLang(l); setSheet(null); }} />}
       {sheet === "why" && picked && rec && <WhySheet r={picked} lang={lang} onClose={() => setSheet(null)} trafficNote={rec.traffic.note} context={rec.coverage.context} onListen={readSheet} />}
       {sheet === "prefs" && (
         <PrefSheet lang={lang} prefs={prefs} card={card} onClose={() => setSheet(null)} onListen={readSheet}
           onApply={(p, c) => { setPrefs(p); setCard(c); setPrefsTouched(true); setSheet(null); if (last.current && loc) void fetchRec(last.current.services, last.current.urgency, loc, p, c, true); }} />
-      )}
-    </div>
-  );
-}
-
-function PlaceControls({ lang, busy, msg, place, setPlace, onDevice, onLookup, candidates, onPick }: {
-  lang: Lang; busy: boolean; msg: string | null; place: string; setPlace: (s: string) => void; onDevice: () => void; onLookup: (q: string) => void;
-  candidates: Candidate[]; onPick: (c: Candidate) => void;
-}) {
-  return (
-    <div style={{ display: "grid", gap: 10 }}>
-      <form className="inline-form" onSubmit={(e) => { e.preventDefault(); onLookup(place); }}>
-        <input className="field-input" value={place} onChange={(e) => setPlace(e.target.value)} placeholder={t(lang, "placeShort")} aria-label={t(lang, "placeInput")} inputMode="text" autoComplete="off" />
-        <button type="submit" className="btn btn-soft tap" style={{ minHeight: 50, padding: "0 18px" }} disabled={busy || !place.trim()}>{t(lang, "go")}</button>
-      </form>
-      <button type="button" className="link" style={{ justifySelf: "start", display: "inline-flex", alignItems: "center", gap: 6, padding: "4px 2px", minHeight: 40 }} onClick={onDevice} disabled={busy}>
-        <LocateFixed size={16} aria-hidden />{busy ? t(lang, "locating") : t(lang, "useLocation")}
-      </button>
-      {msg && <p className="small" role="status">{msg}</p>}
-      {candidates.length > 0 && (
-        <div className="list" style={{ boxShadow: "none", background: "var(--surface-2)" }}>
-          {candidates.map((c) => (
-            <button key={`${c.label}${c.state}`} type="button" className="list-row" onClick={() => onPick(c)}>
-              <span className="row-title">{c.label}</span><span /><ChevronRight size={16} className="chev" aria-hidden />
-              <span className="row-sub">{c.district}, {c.state}</span>
-            </button>
-          ))}
-        </div>
       )}
     </div>
   );

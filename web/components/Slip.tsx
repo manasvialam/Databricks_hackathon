@@ -29,7 +29,7 @@ function fmtDate(s: string | null, lang: Lang): string | null {
 }
 
 /** Green PM-JAY mark; tapping it opens a small card that says what was cross-checked. */
-export function RegistryBadge({ r, lang }: { r: ResultDto; lang: Lang }) {
+export function RegistryBadge({ registry, lang }: { registry: { tier: "verified" | "possible"; nabh: boolean; empanelledOn: string | null } | null; lang: Lang }) {
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
   useEffect(() => {
@@ -39,7 +39,7 @@ export function RegistryBadge({ r, lang }: { r: ResultDto; lang: Lang }) {
     document.addEventListener("pointerdown", away); document.addEventListener("keydown", esc);
     return () => { document.removeEventListener("pointerdown", away); document.removeEventListener("keydown", esc); };
   }, [open]);
-  const rg = r.registry;
+  const rg = registry;
   if (!rg) return null;
   const verified = rg.tier === "verified";
   const since = fmtDate(rg.empanelledOn, lang);
@@ -76,7 +76,7 @@ export function Slip({ r, lang, services, onWhy, onSpeak }: {
     <article className="card" aria-labelledby={`n-${r.id}`}>
       <div className="slip-top">
         <div className="tags">
-          <RegistryBadge r={r} lang={lang} />
+          <RegistryBadge registry={r.registry} lang={lang} />
           {r.open24h && <span className="tag"><Clock size={13} aria-hidden />{t(lang, "open24")}</span>}
         </div>
         <button type="button" className="speak tap" onClick={onSpeak} aria-label={t(lang, "readAloud")}><Volume2 size={17} aria-hidden /></button>

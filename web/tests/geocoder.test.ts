@@ -54,4 +54,26 @@ describe("geocoder (port of Person_2/geocoder.py)", () => {
     const rv = reverse(25.6, 85.14);
     expect(rv?.state).toBe("BIHAR");
   });
+
+  it("resolves full addresses through the PIN code, whatever the street or school is called", () => {
+    const cases: [string, string, number, number][] = [
+      ["thamarai international school, thanjavur, india 613002", "TAMIL NADU", 10.78, 79.12],
+      ["madambakkam main road, rajakilpakam, chennai 600073", "TAMIL NADU", 12.92, 80.15],
+      ["kallipadam po, shoranur 2, palakkad, kerala 679122", "KERALA", 10.77, 76.38],
+      ["Plot 4, Some Street 600 073", "TAMIL NADU", 12.92, 80.15],
+    ];
+    for (const [q, state, lat, lon] of cases) {
+      const g = geocode(q);
+      expect(g.status, q).toBe("ok");
+      if (g.status !== "ok") continue;
+      expect(g.state).toBe(state);
+      expect(Math.abs(g.lat - lat)).toBeLessThan(0.1);
+      expect(Math.abs(g.lon - lon)).toBeLessThan(0.1);
+      expect(g.matched).toMatch(/\d{6}/);
+    }
+  });
+  it("an unknown PIN in an address falls back to the place name instead of failing", () => {
+    const g = geocode("some road, chennai 999999");
+    expect(g.status === "ok" || g.status === "ambiguous").toBe(true);
+  });
 });

@@ -1,5 +1,7 @@
 import "server-only";
 import type { Facility, ServiceId } from "./types";
+import type { Msg } from "./i18n";
+import { warningsFor } from "./recommend";
 import { SERVICES } from "./services";
 import { serviceLogOdds, W } from "./ranking";
 import { snapshot } from "./snapshot";
@@ -29,6 +31,8 @@ export interface NearbyHospital {
   services: ServiceId[];                                  // services with solid evidence, strongest first
   registry: "verified" | "possible" | null;
   nabh: boolean;
+  empanelledOn: string | null;
+  warnings: Msg[];                                        // same cautions the recommendation card shows (merged records, approximate map position, ...)
 }
 
 const solidServices = (f: Facility): ServiceId[] =>
@@ -56,7 +60,7 @@ export function nearbyHospitals(lat: number, lon: number, limit = 12): { hospita
     id: f.id, name: f.nm, type: f.ty, ownership: f.op, city: f.ci, district: f.di, state: f.st, lat: f.la, lon: f.lo,
     km: Math.round(km * 10) / 10, open24h: f.h24, phone: f.ph[0] ?? null, services,
     registry: f.rg && !f.rg.sus ? (f.rg.badge ? "verified" : f.rg.t === "possible" ? "possible" : null) : null,
-    nabh: !!f.rg?.nabh,
+    nabh: !!f.rg?.nabh, empanelledOn: f.rg?.dt ?? null, warnings: warningsFor(f, "routine"),
   }));
   return { hospitals, radiusKm: radius };
 }
