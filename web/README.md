@@ -52,3 +52,14 @@ English, Hindi, Tamil, Telugu and Malayalam, chosen from the menu or taken from 
 - **Input**: service keywords in all five (`lib/services.ts`, `lib/triage/mapping.ts`); places typed or spoken in an Indian script are transliterated and matched (`lib/indic.ts`). Place names inside a sentence only match exactly, so an ordinary word is never turned into a town.
 - **Voice**: recognition listens in the chosen language; read-aloud uses an installed voice for that language and says so when the phone has none.
 - All non-English text is a draft that needs native-speaker review, and the emergency text clinician review as well. `tests/i18n.test.ts` checks that no string, placeholder or emergency number is missing.
+
+
+## Language model on Databricks (optional)
+
+With `DATABRICKS_HOST`, credentials and `FM_ENDPOINT` set (the checked-in `app.yaml` uses the pay-per-token `databricks-meta-llama-3-3-70b-instruct`; confirm the name on the workspace Serving page), one chat endpoint does three jobs. Without it the app runs on rules and the evidence engine alone.
+
+1. **Understanding** (`lib/databricks.ts`, `lib/triage/triage.ts`): reads what the person wrote in any of the five languages, returns symptoms, urgency, the care needed and a plain-English summary. When it answers, its reading decides the care needed and keyword rules are only the fallback. "No listed service fits" (a headache) is a valid answer and shows the nearby hospital list.
+2. **Fit scoring** (`lib/rerank.ts`, used by `lib/recommend.ts` and `lib/ranking.ts`): after the evidence engine shortlists hospitals, the model reads each hospital's own records and scores fit to the need. It is one capped term (at most 0.6 log-odds) in P(service), shown in "Why this hospital". It cannot add hospitals, and it cannot lift Weak or Contradicted evidence. Failure or timeout means evidence-only ranking.
+3. **Translation fallback** (`lib/translate.ts`, `/api/translate`): server messages with no reviewed translation (including the model's one-line reasons) are translated; a translation that changes any digit is discarded; results are cached and a daily budget applies. Reviewed packs in `lib/i18n` are always preferred.
+
+The emergency gate is independent of the model and can only escalate. Not yet verified against the live workspace endpoint: tests use stubs.

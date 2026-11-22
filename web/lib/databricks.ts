@@ -52,18 +52,32 @@ Return ONLY a JSON object with these keys:
 - followUps: up to 2 short questions, only if the answer would change where to go. Write them in ${LANGS.find((l) => l.id === lang)?.label ?? "English"}, in plain words.
 - location: a place named in the message, or null. If it is written in an Indian script, give its usual English spelling.
 - summary: one plain sentence in English
-The message may be in English, Hindi, Tamil, Telugu or Malayalam, or a mix, in any script.`;
+The message may be in English, Hindi, Tamil, Telugu or Malayalam, or a mix, in any script.
+Understand the meaning, not just keywords: "my father keeps getting breathless climbing stairs" and a word-for-word Hindi or Tamil version should give the same answer.
+If no listed service is a good fit (for example headache, fever, cough, a general check-up), return "services": [] instead of guessing.
+summary must restate the need in plain English so another reader can judge which hospital suits it.`;
+
+/** One call to the chat serving endpoint (Databricks Foundation Model API or your own). Returns the text, or null. */
+export async function chatComplete(messages: { role: string; content: string }[], maxTokens = 700, ms = 20_000): Promise<string | null> {
+  const endpoint = process.env.FM_ENDPOINT;
+  if (!endpoint || !llmConfigured()) return null;
+  const res = await authed(`/serving-endpoints/${encodeURIComponent(endpoint)}/invocations`, { method: "POST", body: JSON.stringify({ messages, temperature: 0, max_tokens: maxTokens }) }, ms);
+  if (!res.ok) throw new Error(`serving endpoint ${res.status}`);
+  return ((await res.json()) as { choices?: { message?: { content?: string } }[] }).choices?.[0]?.message?.content ?? null;
+}
+
+/** Pull the first JSON object or array out of a model reply (models sometimes wrap it in prose or code fences). */
+export function parseJsonLoose(content: string | null, open: "{" | "[" = "{"): unknown | null {
+  if (!content) return null;
+  const close = open === "{" ? "}" : "]";
+  const start = content.indexOf(open), end = content.lastIndexOf(close);
+  if (start < 0 || end <= start) return null;
+  try { return JSON.parse(content.slice(start, end + 1)); } catch { return null; }
+}
 
 export async function chatJson(user: string, history: string[] = [], lang: Lang = "en"): Promise<unknown | null> {
-  const endpoint = process.env.FM_ENDPOINT;
-  if (!endpoint) return null;
   const messages = [{ role: "system", content: systemPrompt(lang) }, ...history.slice(-4).map((h) => ({ role: "user", content: h.slice(0, 500) })), { role: "user", content: user.slice(0, 1000) }];
-  const res = await authed(`/serving-endpoints/${encodeURIComponent(endpoint)}/invocations`, { method: "POST", body: JSON.stringify({ messages, temperature: 0, max_tokens: 700 }) });
-  if (!res.ok) throw new Error(`serving endpoint ${res.status}`);
-  const content = ((await res.json()) as { choices?: { message?: { content?: string } }[] }).choices?.[0]?.message?.content;
-  if (!content) return null;
-  const start = content.indexOf("{"), end = content.lastIndexOf("}");
-  return start >= 0 && end > start ? JSON.parse(content.slice(start, end + 1)) : null;
+  return parseJsonLoose(await chatComplete(messages, 700), "{");
 }
 
 /** One retry, then give up and let the rule-based triage answer. */

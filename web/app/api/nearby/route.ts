@@ -1,5 +1,5 @@
 import { handle, HttpError } from "@/lib/http";
-import { nearbyServices } from "@/lib/nearby";
+import { nearbyHospitals, nearbyServices } from "@/lib/nearby";
 import { reverse } from "@/lib/geocoder";
 import { inIndia } from "@/lib/geo";
 
@@ -13,6 +13,7 @@ export const GET = handle(async (req) => {
   const radius = Math.min(100, Math.max(5, Number(u.searchParams.get("radius")) || 25));
   const near = nearbyServices(lat, lon, radius);
   const where = reverse(lat, lon);
-  return Response.json({ ...near, radiusKm: radius, district: where?.district ?? null, state: where?.state ?? null,
+  const list = nearbyHospitals(lat, lon);
+  return Response.json({ ...near, hospitals: list.hospitals, hospitalsRadiusKm: list.radiusKm, radiusKm: radius, district: where?.district ?? null, state: where?.state ?? null,
     note: "Counts are facilities in our data with solid evidence for the service, not every facility in the area." });
 });

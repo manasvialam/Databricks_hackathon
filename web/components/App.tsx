@@ -6,12 +6,14 @@ import { checkRedFlags, type RedFlagResult } from "@/lib/triage/redflags";
 import { PERSONA_BY_ID } from "@/lib/preferences";
 import type { Preferences, ServiceId, Urgency } from "@/lib/types";
 import type { RecommendResponse } from "@/lib/recommend";
-import type { NearbyService } from "@/lib/nearby";
+import type { NearbyHospital, NearbyService } from "@/lib/nearby";
 import { SERVICES } from "@/lib/services";
 import { canListen, listen, stopSpeaking, type Listener } from "@/lib/client/speech";
 import { useReadAlong } from "@/lib/client/readalong";
 import { Slip, svcLabel } from "./Slip";
-import { EmergencyCard, LangSheet, PrefSheet, WhySheet, type CardAnswer } from "./Sheets";
+import { EmergencyCard, HospitalSheet, LangSheet, PrefSheet, WhySheet, type CardAnswer } from "./Sheets";
+import { HospitalList } from "./Hospitals";
+import { Tx } from "./Tx";
 
 interface Loc { lat: number; lon: number; label: string | null }
 interface Candidate { label: string; state: string; district: string; lat: number; lon: number }
@@ -36,7 +38,9 @@ export function App() {
   const [locMsg, setLocMsg] = useState<string | null>(null);
   const [place, setPlace] = useState("");
   const [candidates, setCandidates] = useState<Candidate[]>([]);
-  const [nearby, setNearby] = useState<NearbyService[]>([]);
+  const [, setNearby] = useState<NearbyService[]>([]);
+  const [hospitals, setHospitals] = useState<NearbyHospital[]>([]);
+  const [openH, setOpenH] = useState<NearbyHospital | null>(null);
   const [text, setText] = useState("");
   const [said, setSaid] = useState<string | null>(null);
   const [view, setView] = useState<View>("idle");
@@ -57,6 +61,7 @@ export function App() {
   const [notice, setNotice] = useState<string | null>(null);
 
   const history = useRef<string[]>([]);
+  const need = useRef<string | null>(null);
   const pending = useRef<{ services: ServiceId[]; urgency: Urgency } | null>(null);
   const last = useRef<{ services: ServiceId[]; urgency: Urgency } | null>(null);
   const listener = useRef<Listener | null>(null);
@@ -87,9 +92,11 @@ export function App() {
 
   // services available near the person, before they say anything
   useEffect(() => {
-    if (!loc) { setNearby([]); return; }
+    if (!loc) { setNearby([]); setHospitals([]); return; }
     let live = true;
-    api<{ services: NearbyService[] }>(`/api/nearby?lat=${loc.lat}&lon=${loc.lon}`).then((d) => live && setNearby(d.services)).catch(() => live && setNearby([]));
+    api<{ services: NearbyService[]; hospitals: NearbyHospital[] }>(`/api/nearby?lat=${loc.lat}&lon=${loc.lon}`)
+      .then((d) => { if (live) { setNearby(d.services); setHospitals(d.hospitals ?? []); } })
+      .catch(() => { if (live) { setNearby([]); setHospitals([]); } });
     return () => { live = false; };
   }, [loc]);
 
@@ -99,6 +106,7 @@ export function App() {
     try {
       const body: Record<string, unknown> = { services, urgency, location: at, card: c };
       if (touched) body.preferences = p;
+      if (need.current) body.need = need.current;
       const data = await api<RecommendResponse>("/api/recommend", body);
       setRec(data); setSel(0); setView("result"); window.scrollTo({ top: 0, behavior: "smooth" });
     } catch (e) {
@@ -146,10 +154,11 @@ export function App() {
     setView("loading");
     try {
       const r = await api<{
-        triage: { emergency: RedFlagResult | null; urgency: Urgency; services: ServiceId[]; understood: boolean; followUps: string[]; note: string | null };
+        triage: { emergency: RedFlagResult | null; urgency: Urgency; services: ServiceId[]; understood: boolean; followUps: string[]; note: string | null; need: string | null };
         location: { lat: number; lon: number; matched: string } | null;
       }>("/api/triage", { message: msg, history: history.current.slice(0, -1), lang });
       const tr = r.triage;
+      need.current = tr.need ?? msg;
       if (tr.emergency) setGate(tr.emergency);
       let at = locRef.current;
       if (!at && r.location) { at = { lat: r.location.lat, lon: r.location.lon, label: r.location.matched }; setLoc(at); }
@@ -199,7 +208,7 @@ export function App() {
     setNotice(ok ? null : t(lang, ra.available ? "readingNothing" : "ttsUnavailable"));
   };
   // stop reading when the language, the chosen hospital or the open sheet changes; an emergency card is read out loud as soon as it appears
-  useEffect(() => { ra.stop(); }, [lang, sel, sheet]); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => { ra.stop(); }, [lang, sel, sheet, openH]); // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => { if (ra.state.skipped) setNotice(t(lang, "readingSkipped")); }, [ra.state.skipped]); // eslint-disable-line react-hooks/exhaustive-deps
   const emergencyRead = useRef<RedFlagResult | null>(null);
   useEffect(() => {
@@ -254,20 +263,24 @@ export function App() {
           {view === "pickcare" && (
             <>
               <div style={{ padding: "0 4px" }}>
-                <h2 className="title">{t(lang, "pickCare")}</h2>
+                <h2 className="title">{hospitals.length ? t(lang, "hospitalsNear") : t(lang, "pickCare")}</h2>
                 {careNote && <p className="muted" style={{ marginTop: 6 }}>{careNote}</p>}
               </div>
-              <div className="list">
-                {SERVICES.map((s) => (
-                  <button key={s.id} type="button" className="list-row" onClick={() => {
-                    const urgency: Urgency = s.urgentByNature ? "urgent" : "routine";
-                    if (loc) void fetchRec([s.id], urgency, loc); else { pending.current = { services: [s.id], urgency }; setView("needplace"); }
-                  }}>
-                    <span className="row-title">{svcLabel(s.id, lang)}</span><span /><ChevronRight size={16} className="chev" aria-hidden />
-                    <span className="row-sub">{svcPlain(s.id, lang)}</span>
-                  </button>
-                ))}
-              </div>
+              {hospitals.length > 0
+                ? <HospitalList hospitals={hospitals} lang={lang} onOpen={setOpenH} />
+                : (
+                  <div className="list">
+                    {SERVICES.map((s) => (
+                      <button key={s.id} type="button" className="list-row" onClick={() => {
+                        const urgency: Urgency = s.urgentByNature ? "urgent" : "routine";
+                        if (loc) void fetchRec([s.id], urgency, loc); else { pending.current = { services: [s.id], urgency }; setView("needplace"); }
+                      }}>
+                        <span className="row-title">{svcLabel(s.id, lang)}</span><span /><ChevronRight size={16} className="chev" aria-hidden />
+                        <span className="row-sub">{svcPlain(s.id, lang)}</span>
+                      </button>
+                    ))}
+                  </div>
+                )}
             </>
           )}
 
@@ -299,22 +312,18 @@ export function App() {
                 {loc ? (
                   <div className="loc" style={{ gridTemplateColumns: "1fr auto" }}>
                     <div className="loc-v">{loc.label ? <span lang="en">{loc.label}</span> : t(lang, "currentLocation")}</div>
-                    <button type="button" className="link" onClick={() => { setLoc(null); setNearby([]); }}>{t(lang, "change")}</button>
+                    <button type="button" className="link" onClick={() => { setLoc(null); setNearby([]); setHospitals([]); }}>{t(lang, "change")}</button>
                   </div>
                 ) : placeForm}
               </div>
 
-              {nearby.length > 0 && (
+              {hospitals.length > 0 && (
                 <>
-                  <h2 className="section-label" style={{ marginTop: 8 }}>{t(lang, "nearYou")}</h2>
-                  <div className="tiles">
-                    {nearby.slice(0, 4).map((s) => (
-                      <button key={s.id} type="button" className="tile tap" onClick={() => loc && fetchRec([s.id], s.urgent ? "urgent" : "routine", loc)}>
-                        <span className="tile-name">{svcLabel(s.id, lang)}</span>
-                        <span className="tile-num">{s.nearestKm != null ? <>{Math.round(s.nearestKm)}<small>{t(lang, "km")}</small></> : "–"}</span>
-                      </button>
-                    ))}
+                  <div style={{ padding: "6px 6px 0" }}>
+                    <h2 className="section-label" style={{ padding: 0 }}>{t(lang, "hospitalsNear")}</h2>
+                    <p className="tiny" style={{ marginTop: 2 }}>{t(lang, "hospitalsNote")}</p>
                   </div>
+                  <HospitalList hospitals={hospitals} lang={lang} onOpen={setOpenH} />
                 </>
               )}
               <p className="foot">{t(lang, "notAffiliated")}</p>
@@ -323,7 +332,7 @@ export function App() {
 
           {view === "result" && rec && picked && (
             <>
-              {rec.notes.length > 0 && <div className="notes">{rec.notes.map((n) => <p key={n.text}>{say(n, lang)}</p>)}</div>}
+              {rec.notes.length > 0 && <div className="notes">{rec.notes.map((n) => <p key={n.text}><Tx m={n} lang={lang} /></p>)}</div>}
               <Slip r={picked} lang={lang} services={rec.services} onWhy={() => setSheet("why")} onSpeak={readSlip} />
               {rec.results.length > 1 && (
                 <>
@@ -347,7 +356,7 @@ export function App() {
             </>
           )}
           {view === "result" && rec && !picked && (
-            <div className="card"><p>{t(lang, "none")}</p>{rec.notes.map((n) => <p key={n.text} className="small" style={{ marginTop: 8 }}>{say(n, lang)}</p>)}</div>
+            <div className="card"><p>{t(lang, "none")}</p>{rec.notes.map((n) => <p key={n.text} className="small" style={{ marginTop: 8 }}><Tx m={n} lang={lang} /></p>)}</div>
           )}
         </div>
       </main>
@@ -380,6 +389,7 @@ export function App() {
         </div>
       )}
 
+      {openH && <HospitalSheet h={openH} lang={lang} onClose={() => setOpenH(null)} onListen={readSheet} />}
       {sheet === "lang" && <LangSheet lang={lang} onClose={() => setSheet(null)} onListen={readSheet} onPick={(l) => { chooseLang(l); setSheet(null); }} />}
       {sheet === "why" && picked && rec && <WhySheet r={picked} lang={lang} onClose={() => setSheet(null)} trafficNote={rec.traffic.note} context={rec.coverage.context} onListen={readSheet} />}
       {sheet === "prefs" && (

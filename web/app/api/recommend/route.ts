@@ -40,6 +40,7 @@ export const POST = handle(async (req) => {
   }
   const card = b.card === "yes" || b.card === "no" ? b.card : "unknown";
 
-  const data = await recommend({ services, urgency, lat, lon, locationLabel: label, persona, preferences, card });
+  const need = typeof b.need === "string" ? b.need.replace(/\s+/g, " ").trim().slice(0, 400) || null : null;
+  const data = await recommend({ services, urgency, lat, lon, locationLabel: label, persona, preferences, card, need });
   return Response.json(data);
 });
