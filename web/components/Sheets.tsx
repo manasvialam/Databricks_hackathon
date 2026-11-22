@@ -213,14 +213,14 @@ export function EmergencyCard({ gate, lang, online }: { gate: RedFlagResult; lan
 }
 
 export function HospitalWhySheet({ h, lang, onClose, onListen }: { h: NearbyHospital; lang: Lang; onClose: () => void; onListen?: () => void }) {
-  const pos: string[] = [t(lang, "whyNear", { km: h.km })];
+  const pos: string[] = h.fitWhy ? [say(h.fitWhy, lang), t(lang, "whyNear", { km: h.km })] : [t(lang, "whyNear", { km: h.km })];
   if (h.registry === "verified") pos.push(t(lang, "pmjayListed"));
   if (h.nabh) pos.push(t(lang, "nabh"));
   if (h.open24h) pos.push(t(lang, "open24"));
   if (h.services.length) pos.push(t(lang, "whyServices", { n: h.services.length }));
   return (
     <Sheet title={t(lang, "whyThis")} onClose={onClose} lang={lang} onListen={onListen}>
-      <p className="muted">{t(lang, "whyGeneral")}</p>
+      <p className="muted">{t(lang, h.fit !== undefined ? "whyGeneralFit" : "whyGeneral")}</p>
       <div className="block">
         <ul className="why-list">{pos.map((x) => <li key={x}><span className="why-ico pos"><Plus size={14} strokeWidth={2.5} aria-hidden /></span><span>{x}</span></li>)}</ul>
       </div>

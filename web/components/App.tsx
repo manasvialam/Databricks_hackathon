@@ -171,6 +171,22 @@ export function App() {
     setLocBusy(false);
   }, [lang, setLocation]);
 
+  const hospitalsRef = useRef(hospitals); hospitalsRef.current = hospitals;
+
+  /** A need that maps to no service: the model scores the nearest hospitals against what the person described, and the best fit comes first. */
+  const fitHospitals = useCallback(async (needText: string) => {
+    const base = hospitalsRef.current;
+    if (!needText || base.length < 2) return;
+    try {
+      const r = await api<{ fits: Record<string, { fit: number; why: string }> }>("/api/hospital-fit", { need: needText, ids: base.slice(0, 8).map((h) => h.id) });
+      if (!Object.keys(r.fits).length) return;
+      const head = base.slice(0, 8).map((h, i) => ({ h: { ...h, fit: r.fits[h.id]?.fit, fitWhy: r.fits[h.id]?.why ? { k: "whyFitGeneric" as const, text: r.fits[h.id].why } : undefined }, i }));
+      head.sort((a, b) => (Math.round((b.h.fit ?? 0) * 5) - Math.round((a.h.fit ?? 0) * 5)) || a.i - b.i);   // fit in steps of 0.2, nearest first within a step
+      setHospitals([...head.map((x) => x.h), ...base.slice(8)]);
+      setSel(0);
+    } catch { /* nearest-first stays */ }
+  }, []);
+
   const run = useCallback(async (raw: string) => {
     const msg = raw.trim();
     if (!msg) return;
@@ -196,14 +212,14 @@ export function App() {
         if (urgency === "emergency") { at = detected; setLoc(at); }
         else { pending.current = services.length ? { services, urgency } : null; if (!services.length) { setCareNote(tr.followUps[0] ?? null); setSel(0); } setView(services.length ? "needplace" : "pickcare"); void askConfirm(detected); return; }
       }
-      if (!services.length) { setCareNote(tr.followUps[0] ?? null); setSel(0); setView(g || tr.emergency ? "idle" : "pickcare"); if (!at && !g && !tr.emergency) { loadAsk(); setSheet("loc"); } return; }
+      if (!services.length) { setCareNote(tr.followUps[0] ?? null); setSel(0); setView(g || tr.emergency ? "idle" : "pickcare"); if (!at && !g && !tr.emergency) { loadAsk(); setSheet("loc"); } else if (at && !g && !tr.emergency) void fitHospitals(need.current); return; }
       if (!at) { pending.current = { services, urgency }; loadAsk(); setView("needplace"); setSheet("loc"); return; }
       await fetchRec(services, urgency, at);
     } catch {
       setErrMsg(online ? t(lang, "error") : t(lang, "offline"));
       setView(g ? "idle" : "error");
     }
-  }, [fetchRec, online, lang, askConfirm, loadAsk]);
+  }, [fetchRec, online, lang, askConfirm, loadAsk, fitHospitals]);
 
   const toggleMic = useCallback(() => {
     if (listening) { listener.current?.stop(); return; }
@@ -227,7 +243,7 @@ export function App() {
   const lastScreen = useRef<View>("idle");
   if (view !== "loading") lastScreen.current = view;
   const recRef = useRef(rec); recRef.current = rec;
-  const hospitalsRef = useRef(hospitals); hospitalsRef.current = hospitals;
+
   const nav = useHistorySync(
     { v: ((view === "loading" ? lastScreen.current : view) === "needplace" ? "idle" : (view === "loading" ? lastScreen.current : view)), sel, ov: sheet, g: !!gate },
     (e: NavEntry) => {

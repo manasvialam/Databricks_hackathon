@@ -32,6 +32,7 @@ export interface NearbyHospital {
   registry: "verified" | "possible" | null;
   nabh: boolean;
   empanelledOn: string | null;
+  fit?: number; fitWhy?: Msg;                             // set by the language model for needs that map to no service (client side)
   warnings: Msg[];                                        // same cautions the recommendation card shows (merged records, approximate map position, ...)
 }
 
