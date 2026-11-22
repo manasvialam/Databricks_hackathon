@@ -62,6 +62,8 @@ export function App() {
 
   const history = useRef<string[]>([]);
   const need = useRef<string | null>(null);
+  const [confirm, setConfirm] = useState<{ loc: Loc; text: string; place: string } | null>(null);
+  const [askText, setAskText] = useState<string | null>(null);
   const pending = useRef<{ services: ServiceId[]; urgency: Urgency } | null>(null);
   const last = useRef<{ services: ServiceId[]; urgency: Urgency } | null>(null);
   const listener = useRef<Listener | null>(null);
@@ -116,16 +118,38 @@ export function App() {
     }
   }, [prefs, card, prefsTouched, lang]);
 
-  const setLocation = useCallback((l: Loc) => {
-    setLoc(l); setLocMsg(null); setCandidates([]); setPlace("");
+  const applyLocation = useCallback((l: Loc) => {
+    setLoc(l); setLocMsg(null); setCandidates([]); setPlace(""); setConfirm(null);
     if (pending.current) { const p = pending.current; pending.current = null; void fetchRec(p.services, p.urgency, l); }
   }, [fetchRec]);
+
+  /** The model asks "is this where you are?" in the person's language; a reviewed sentence shows first and is replaced when the model answers. */
+  const askConfirm = useCallback(async (l: Loc) => {
+    const place = l.label ?? t(lang, "currentLocation");
+    setConfirm({ loc: l, text: t(lang, "confirmQ"), place });
+    try {
+      const r = await api<{ text: string }>("/api/assist", { kind: "confirm", lang, place });
+      setConfirm((c) => (c && c.loc === l ? { ...c, text: r.text } : c));
+    } catch { /* the reviewed sentence stays */ }
+  }, [lang]);
+  const setLocation = useCallback((l: Loc) => { setLocMsg(null); setCandidates([]); setPlace(""); void askConfirm(l); }, [askConfirm]);
+
+  /** The model asks where the person is, mentioning the care they need. */
+  const loadAsk = useCallback(() => {
+    setAskText(t(lang, "whereAreYou"));
+    api<{ text: string }>("/api/assist", { kind: "ask", lang, need: need.current }).then((r) => setAskText(r.text)).catch(() => {});
+  }, [lang]);
 
   const useDevice = useCallback(() => {
     if (!navigator.geolocation) { setLocMsg(t(lang, "locDenied")); return; }
     setLocBusy(true);
     navigator.geolocation.getCurrentPosition(
-      (pos) => { setLocBusy(false); setLocation({ lat: pos.coords.latitude, lon: pos.coords.longitude, label: null }); },
+      async (pos) => {
+        const { latitude: lat, longitude: lon } = pos.coords;
+        let label: string | null = null;
+        try { const g = await api<{ status: string; label?: string }>(`/api/geocode?lat=${lat}&lon=${lon}`); if (g.status === "ok") label = g.label ?? null; } catch { /* confirm without a name */ }
+        setLocBusy(false); setLocation({ lat, lon, label });
+      },
       () => { setLocBusy(false); setLocMsg(t(lang, "locDenied")); },
       { enableHighAccuracy: false, timeout: 10000, maximumAge: 60000 },
     );
@@ -161,17 +185,21 @@ export function App() {
       need.current = tr.need ?? msg;
       if (tr.emergency) setGate(tr.emergency);
       let at = locRef.current;
-      if (!at && r.location) { at = { lat: r.location.lat, lon: r.location.lon, label: r.location.matched }; setLoc(at); }
+      const detected: Loc | null = !at && r.location ? { lat: r.location.lat, lon: r.location.lon, label: r.location.matched } : null;
       const services = tr.emergency && !tr.services.length ? tr.emergency.services.slice(0, 2) : tr.services;
       const urgency: Urgency = tr.emergency ? "emergency" : tr.urgency;
+      if (detected) {
+        if (urgency === "emergency") { at = detected; setLoc(at); }          // in an emergency nobody waits to confirm a place
+        else { pending.current = services.length ? { services, urgency } : null; void askConfirm(detected); setView("needplace"); return; }
+      }
       if (!services.length) { setCareNote(tr.followUps[0] ?? null); setView(g || tr.emergency ? "idle" : "pickcare"); return; }
-      if (!at) { pending.current = { services, urgency }; setView("needplace"); return; }
+      if (!at) { pending.current = { services, urgency }; loadAsk(); setView("needplace"); return; }
       await fetchRec(services, urgency, at);
     } catch {
       setErrMsg(online ? t(lang, "error") : t(lang, "offline"));
       setView(g ? "idle" : "error");
     }
-  }, [fetchRec, online, lang]);
+  }, [fetchRec, online, lang, askConfirm, loadAsk]);
 
   const toggleMic = useCallback(() => {
     if (listening) { listener.current?.stop(); return; }
@@ -219,7 +247,16 @@ export function App() {
   }, [gate]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const pickPlace = (c: Candidate) => setLocation({ lat: c.lat, lon: c.lon, label: `${c.district}, ${c.state}` });
-  const placeForm = (
+  const placeForm = confirm ? (
+    <div className="confirm">
+      <p className="ask" data-read>{confirm.text}</p>
+      <p className="place-chip" data-read lang="en"><MapPin size={18} aria-hidden />{confirm.place}</p>
+      <div className="btn-row">
+        <button type="button" className="btn btn-dark tap" onClick={() => applyLocation(confirm.loc)}>{t(lang, "confirmYes")}</button>
+        <button type="button" className="btn tap" onClick={() => setConfirm(null)}>{t(lang, "confirmNo")}</button>
+      </div>
+    </div>
+  ) : (
     <PlaceControls lang={lang} busy={locBusy} msg={locMsg} place={place} setPlace={setPlace} onDevice={useDevice} onLookup={lookupPlace}
       candidates={candidates} onPick={pickPlace} />
   );
@@ -273,7 +310,7 @@ export function App() {
                     {SERVICES.map((s) => (
                       <button key={s.id} type="button" className="list-row" onClick={() => {
                         const urgency: Urgency = s.urgentByNature ? "urgent" : "routine";
-                        if (loc) void fetchRec([s.id], urgency, loc); else { pending.current = { services: [s.id], urgency }; setView("needplace"); }
+                        if (loc) void fetchRec([s.id], urgency, loc); else { pending.current = { services: [s.id], urgency }; loadAsk(); setView("needplace"); }
                       }}>
                         <span className="row-title">{svcLabel(s.id, lang)}</span><span /><ChevronRight size={16} className="chev" aria-hidden />
                         <span className="row-sub">{svcPlain(s.id, lang)}</span>
@@ -284,7 +321,7 @@ export function App() {
             </>
           )}
 
-          {view === "needplace" && <div className="card where"><p className="label"><MapPin size={17} aria-hidden />{t(lang, "whereLabel")}</p>{placeForm}</div>}
+          {view === "needplace" && <div className="card where"><p className="label"><MapPin size={17} aria-hidden />{t(lang, "whereLabel")}</p>{!confirm && askText && <p className="ask" data-read>{askText}</p>}{placeForm}</div>}
 
           {showIdle && (
             <>

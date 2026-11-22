@@ -4,6 +4,10 @@ command: ["npm", "run", "start:app"]
 env:
   - name: FM_ENDPOINT
     value: databricks-meta-llama-3-3-70b-instruct
+  - name: RERANK_ENDPOINT      # a smaller, faster model for scoring hospital fit (the 70B model needs over 10 s for this)
+    value: databricks-meta-llama-3-1-8b-instruct
+  - name: ASSIST_ENDPOINT      # writes the where-are-you question and the confirmation in the person's language
+    value: databricks-qwen3-next-80b-a3b-instruct
   - name: DATABRICKS_WAREHOUSE_ID
     valueFrom: warehouse        # resource "warehouse": the SQL warehouse holding workspace.facility_finder.app_snapshot
   - name: TRAFFIC_PROVIDER

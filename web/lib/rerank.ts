@@ -44,7 +44,11 @@ const cache = new Map<string, { at: number; v: Record<string, Fit> }>();
 const TTL = 10 * 60_000;
 export function _clearRerankCache() { cache.clear(); }
 
-export async function rerankFit(need: string, facilities: Facility[], timeoutMs = 7000): Promise<Record<string, Fit> | null> {
+/** The model scores only the first FIT_MAX hospitals: a long list makes a 70B model take over ten seconds. */
+const FIT_MAX = 8;
+
+export async function rerankFit(need: string, all: Facility[], timeoutMs = 9000): Promise<Record<string, Fit> | null> {
+  const facilities = all.slice(0, FIT_MAX);
   const text = need.replace(/\s+/g, " ").trim().slice(0, 400);
   if (!text || !facilities.length || !llmConfigured()) return null;
   const key = `${text}|${facilities.map((f) => f.id).sort().join(",")}`;
@@ -53,7 +57,7 @@ export async function rerankFit(need: string, facilities: Facility[], timeoutMs 
   try {
     const list = facilities.map((f, i) => `${i + 1}. id=${f.id} | ${describeFacility(f)}`).join("\n");
     const reply = await Promise.race([
-      chatComplete([{ role: "system", content: SYSTEM }, { role: "user", content: `Patient need (data): ${text}\n\nHospitals:\n${list}` }], 900, timeoutMs),
+      chatComplete([{ role: "system", content: SYSTEM }, { role: "user", content: `Patient need (data): ${text}\n\nHospitals:\n${list}` }], 700, timeoutMs, process.env.RERANK_ENDPOINT || undefined),
       new Promise<null>((r) => setTimeout(() => r(null), timeoutMs)),
     ]);
     const v = validateFits(parseJsonLoose(reply, "["), new Set(facilities.map((f) => f.id)));

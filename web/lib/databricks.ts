@@ -58,8 +58,8 @@ If no listed service is a good fit (for example headache, fever, cough, a genera
 summary must restate the need in plain English so another reader can judge which hospital suits it.`;
 
 /** One call to the chat serving endpoint (Databricks Foundation Model API or your own). Returns the text, or null. */
-export async function chatComplete(messages: { role: string; content: string }[], maxTokens = 700, ms = 20_000): Promise<string | null> {
-  const endpoint = process.env.FM_ENDPOINT;
+export async function chatComplete(messages: { role: string; content: string }[], maxTokens = 700, ms = 12_000, endpointOverride?: string): Promise<string | null> {
+  const endpoint = endpointOverride || process.env.FM_ENDPOINT;
   if (!endpoint || !llmConfigured()) return null;
   const res = await authed(`/serving-endpoints/${encodeURIComponent(endpoint)}/invocations`, { method: "POST", body: JSON.stringify({ messages, temperature: 0, max_tokens: maxTokens }) }, ms);
   if (!res.ok) throw new Error(`serving endpoint ${res.status}`);
@@ -127,4 +127,12 @@ export async function sqlQueryLong(statement: string, maxWaitMs = 240_000): Prom
   if (j.status.state !== "SUCCEEDED") throw new Error(`sql ${j.status.state}: ${j.status.error?.message ?? ""}`);
   const cols = j.manifest?.schema.columns.map((c) => c.name) ?? [];
   return (j.result?.data_array ?? []).map((row) => Object.fromEntries(cols.map((c, i) => [c, row[i]])));
+}
+
+/** Wake the model endpoints once when the server starts, so the first person to use the app is not the one who waits for a cold start. */
+export async function warmModels(): Promise<void> {
+  if (!llmConfigured()) return;
+  for (const ep of new Set([process.env.FM_ENDPOINT, process.env.RERANK_ENDPOINT].filter(Boolean) as string[])) {
+    try { await chatComplete([{ role: "user", content: "ok" }], 1, 60_000, ep); } catch (e) { console.error("model warm-up failed:", ep, e instanceof Error ? e.message : e); }
+  }
 }
