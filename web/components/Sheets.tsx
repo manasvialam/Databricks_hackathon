@@ -1,6 +1,6 @@
 "use client";
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Check, Minus, Phone, Plus, Volume2, X } from "lucide-react";
+import { Check, ExternalLink, Minus, Phone, Plus, Volume2, X } from "lucide-react";
 import type { ResultDto } from "@/lib/recommend";
 import type { RedFlagResult } from "@/lib/triage/redflags";
 import type { Contribution, Preferences } from "@/lib/types";
@@ -76,15 +76,28 @@ function Term({ c, lang }: { c: Contribution; lang: Lang }) {
   return <span>{label}{detail ? `. ${detail}` : ""}</span>;
 }
 
-export function WhySheet({ r, lang, onClose, trafficNote, onListen }: { r: ResultDto; lang: Lang; onClose: () => void; trafficNote: Msg; onListen?: () => void }) {
+const host = (u: string) => { try { return new URL(u).hostname.replace(/^www\./, ""); } catch { return u; } };
+
+export function WhySheet({ r, lang, onClose, trafficNote, context = [], onListen }: { r: ResultDto; lang: Lang; onClose: () => void; trafficNote: Msg; context?: Msg[]; onListen?: () => void }) {
   const pct = Math.round(r.pBest * 100);
+  const ev = r.evidence.find((e) => e.snippets.length);
+  const quote = ev?.snippets[0];
+  const src = ev?.sources[0];
   return (
-    <Sheet title={t(lang, "why")} onClose={onClose} lang={lang} onListen={onListen}>
+    <Sheet title={t(lang, "whyThis")} onClose={onClose} lang={lang} onListen={onListen}>
       <p className="muted">{t(lang, "whyIntro")}</p>
       <div style={{ marginTop: 14 }}>
         <div className="big-pct">{pct}<small>%</small></div>
         <div className="bar" aria-hidden><i style={{ width: `${pct}%` }} /></div>
       </div>
+      {quote && (
+        <div className="block">
+          <h3 className="block-h">{t(lang, "theySay")}</h3>
+          {/* the facility's own text, cited verbatim, so it stays in the language it was written in */}
+          <blockquote className="quote" lang="en">“{quote.text.length > 300 ? quote.text.slice(0, 297) + "…" : quote.text}”</blockquote>
+          {src && <p className="src"><a href={src.url} target="_blank" rel="noopener noreferrer">{t(lang, "source")}: <span lang="en">{host(src.url)}</span><ExternalLink size={12} aria-hidden /></a>{!src.namesFacility && <span className="tiny"> ({t(lang, "srcNotNamed")})</span>}</p>}
+        </div>
+      )}
       <div className="block">
         <h3 className="block-h">{t(lang, "positives")}</h3>
         <ul className="why-list">
@@ -99,6 +112,8 @@ export function WhySheet({ r, lang, onClose, trafficNote, onListen }: { r: Resul
         </div>
       )}
       <div className="block card-flat" style={{ display: "grid", gap: 8 }}>
+        {r.warnings.slice(1).map((w) => <p key={w.text} className="small">{say(w, lang)}</p>)}
+        {context.map((c) => <p key={c.text} className="small">{say(c, lang)}</p>)}
         <p className="small">{say(trafficNote, lang)}</p>
         {r.registry && <p className="small">{t(lang, "registryNote")}</p>}
         <p className="small">{t(lang, "estimate")}</p>
@@ -186,7 +201,7 @@ export function EmergencyCard({ gate, lang, online }: { gate: RedFlagResult; lan
           </div>
         );
       })}
-      {!online && <p style={{ fontSize: 14 }} data-read>{t(lang, "emergencyOffline")}</p>}
+      {!online && <p style={{ fontSize: 14 }}>{t(lang, "emergencyOffline")}</p>}
     </section>
   );
 }
