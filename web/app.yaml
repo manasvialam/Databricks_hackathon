@@ -6,6 +6,8 @@ env:
     value: databricks-qwen35-122b-a10b
   - name: RERANK_ENDPOINT      # a smaller, faster model for scoring hospital fit (the 70B model needs over 10 s for this)
     value: databricks-meta-llama-3-1-8b-instruct
+  - name: FM_FALLBACK_ENDPOINT   # used when the main model endpoint is rate-limited (HTTP 429)
+    value: databricks-llama-4-maverick
   - name: ASSIST_ENDPOINT      # writes the where-are-you question and the confirmation in the person's language
     value: databricks-qwen3-next-80b-a3b-instruct
   - name: DATABRICKS_WAREHOUSE_ID

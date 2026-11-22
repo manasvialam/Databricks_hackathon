@@ -49,6 +49,7 @@ Return ONLY a JSON object with these keys:
 - symptoms: up to 8 short strings, in the writer's meaning
 - urgency: "emergency", "urgent" or "routine". When unsure choose the higher level.
 - services: the care that is needed, most important first, chosen ONLY from: ${SERVICE_IDS.join(", ")}
+- adviceRequest: true when the person asks for a medicine, a dose, a diagnosis, a home remedy or how to treat something themselves
 - careRequest: true when the person describes a symptom or health problem, or asks for a hospital, clinic, doctor, test or treatment; false for a greeting, thanks, a question about the app or any other chat
 - specialties: up to 3 kinds of doctor or department that suit the need, most suitable first, chosen ONLY from: ${SPECIALTIES.map((s) => s.id).join(", ")} (for example knee pain: bones; skin rash: skin; fever with no clear cause: general)
 - possibleConditions: up to 3 objects {name, why}. These are patterns that can be seen with the symptoms, never a diagnosis.
@@ -68,7 +69,14 @@ const REASONING_MODEL = /qwen35/i;
 export async function chatComplete(messages: { role: string; content: string }[], maxTokens = 700, ms = 12_000, endpointOverride?: string): Promise<string | null> {
   const endpoint = endpointOverride || process.env.FM_ENDPOINT;
   if (!endpoint || !llmConfigured()) return null;
-  const res = await authed(`/serving-endpoints/${encodeURIComponent(endpoint)}/invocations`, { method: "POST", body: JSON.stringify({ messages, temperature: 0, max_tokens: maxTokens, ...(REASONING_MODEL.test(endpoint) ? { reasoning_effort: "none" } : {}) }) }, ms);
+  const call = (ep: string) => authed(`/serving-endpoints/${encodeURIComponent(ep)}/invocations`, { method: "POST", body: JSON.stringify({ messages, temperature: 0, max_tokens: maxTokens, ...(REASONING_MODEL.test(ep) ? { reasoning_effort: "none" } : {}) }) }, ms);
+  let res = await call(endpoint);
+  if (res.status === 429) {                                   // the pay-per-token endpoint is busy: wait a moment, try again, then use the fallback model
+    await new Promise((r) => setTimeout(r, 1200));
+    res = await call(endpoint);
+    const fallback = process.env.FM_FALLBACK_ENDPOINT;
+    if (res.status === 429 && fallback && fallback !== endpoint) res = await call(fallback);
+  }
   if (!res.ok) throw new Error(`serving endpoint ${res.status}`);
   return contentText(((await res.json()) as { choices?: { message?: { content?: unknown } }[] }).choices?.[0]?.message?.content);
 }

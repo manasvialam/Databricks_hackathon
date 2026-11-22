@@ -25,7 +25,7 @@ export const RED_FLAGS: RedFlagCategory[] = [
     patterns: [re("chest\\s*(pain|pressure|tight|heav)"), re("pain.{0,15}chest"), re("heart\\s*attack"), re("seene?.{0,15}(dard|bhaari|jakdan)"), re("chhati.{0,15}dard"), re("सीने.{0,20}(दर्द|जकड़न|भारीपन)"), re("दिल\\s*का\\s*दौरा"), re("हार्ट\\s*अटैक")],
     now: "Call 108 or 112 now. Do not drive yourself.", whileWaiting: "Sit or lie down and stay as calm and still as you can." },
   { id: "breathing", label: "Trouble breathing", services: ["icu", "ventilator", "trauma_emergency"],
-    patterns: [re("(can['’]?t|cannot|can not|unable to|not able to)\\s+(breathe|breath)"), re("(difficulty|trouble|hard)\\s+(in\\s+)?breath"), re("short(ness)?\\s+of\\s+breath"), re("breathless"), re("gasping"), re("saans?.{0,15}(nahi|nahin|nhi|lene|phool|ruk)"), re("सांस.{0,15}(नहीं|तकलीफ|दिक्कत|फूल)"), re("साँस.{0,15}(नहीं|तकलीफ|दिक्कत|फूल)"), re("दम\\s*घुट")],
+    patterns: [re("(can['’]?t|cannot|can not|unable to|not able to)\\s+(breathe|breath)"), re("(not|stopped|isn['’]?t|is\\s+no\\s+longer|barely|hardly)\\s+breath"), re("\\bchok(e|ed|ing)\\b|\\bchocking\\b"), re("turn(ed|ing)?\\s+blue|blue\\s+(lips|face)|lips?\\s+(are\\s+|is\\s+)?blue"), re("\\bbrething\\b|\\bbreathng\\b|\\bbre?thing\\s+(problem|trouble|difficult)|cant\\s+breath"), re("no\\s+pulse|pulseless|no\\s+heart\\s*beat"), re("(difficulty|trouble|hard)\\s+(in\\s+)?breath"), re("short(ness)?\\s+of\\s+breath"), re("breathless"), re("gasping"), re("saans?.{0,15}(nahi|nahin|nhi|lene|phool|ruk)"), re("सांस.{0,15}(नहीं|तकलीफ|दिक्कत|फूल)"), re("साँस.{0,15}(नहीं|तकलीफ|दिक्कत|फूल)"), re("दम\\s*घुट")],
     now: "Call 108 or 112 now.", whileWaiting: "Sit upright if you can, and loosen tight clothing." },
   { id: "stroke", label: "Possible stroke", services: ["ct_scan", "icu", "trauma_emergency"],
     patterns: [re("stroke"), re("face\\s*(is\\s*)?droop"), re("facial\\s*droop"), re("slurred\\s*speech"), re("(can['’]?t|cannot)\\s+speak"), re("sudden(ly)?\\s+(weak|numb)"), re("one\\s*side.{0,20}(weak|numb|paraly)"), re("paralys"), re("लकवा"), re("मुंह\\s*टेढ़ा"), re("बोलने.{0,10}(दिक्कत|परेशानी)")],
@@ -34,13 +34,13 @@ export const RED_FLAGS: RedFlagCategory[] = [
     patterns: [re("seizure"), re("convuls"), re("\\bfits?\\b"), re("epilep"), re("मिर्गी"), re("दौरे?\\s*(पड़|आ)"), re("jhatke")],
     now: "Call 108 or 112 now.", whileWaiting: "Move hard objects away, turn the person on their side, and put nothing in their mouth." },
   { id: "bleeding", label: "Heavy bleeding", services: ["trauma_emergency", "blood_bank", "icu"],
-    patterns: [re("heavy\\s+bleed"), re("bleed\\w*\\s+(a\\s+lot|badly|heavily)"), re("bleed\\w*.{0,25}(won['’]?t|will\\s+not|doesn['’]?t|does\\s+not|not)\\s+(stop|stopping)"), re("too\\s+much\\s+blood"), re("vomit(ing)?\\s+blood"), re("cough(ing)?\\s+(up\\s+)?blood"), re("blood\\s+in\\s+(vomit|stool)"), re("bahut\\s+khoon"), re("khoon\\s+(beh|ruk)"), re("खून\\s*(बह|नहीं\\s*रुक)"), re("खून\\s*की\\s*उल्टी")],
+    patterns: [re("(bleeding|bleding|bleeeding|blding|bleedin)\\s*.{0,20}(won['’]?t|wont|will\\s+not|not|doesn['’]?t|doesnt)\\s*(stop|stopping)"), re("heavy\\s+bleed"), re("bleed\\w*\\s+(a\\s+lot|badly|heavily)"), re("bleed\\w*.{0,25}(won['’]?t|will\\s+not|doesn['’]?t|does\\s+not|not)\\s+(stop|stopping)"), re("too\\s+much\\s+blood"), re("vomit(ing)?\\s+blood"), re("cough(ing)?\\s+(up\\s+)?blood"), re("blood\\s+in\\s+(vomit|stool)"), re("bahut\\s+khoon"), re("khoon\\s+(beh|ruk)"), re("खून\\s*(बह|नहीं\\s*रुक)"), re("खून\\s*की\\s*उल्टी")],
     now: "Call 108 or 112 now.", whileWaiting: "Press firmly on the wound with a clean cloth and keep pressing." },
   { id: "pregnancy", label: "Pregnancy emergency", services: ["obstetrics", "c_section", "nicu", "blood_bank"],
     patterns: [re("pregnan\\w*.{0,40}(bleed|fit|seiz|severe\\s+pain|headache|not\\s+moving|swelling)"), re("(bleed|fit|seiz).{0,40}pregnan"), re("labou?r\\s+pain"), re("water\\s+broke"), re("waters?\\s+(have\\s+)?broke"), re("contractions"), re("baby\\s+(is\\s+)?not\\s+moving"), re("गर्भवती.{0,40}(खून|दर्द|दौरे|झटके)"), re("प्रसव\\s*(पीड़ा|दर्द)"), re("पानी\\s*(की\\s*थैली\\s*)?फट"), re("delivery\\s*(pain|dard)")],
     now: "Call 108 or 112 now, and tell them she is pregnant.", whileWaiting: "Lie her on her left side and do not let her walk or push." },
   { id: "unconscious", label: "Unconscious or not responding", services: ["icu", "trauma_emergency", "ventilator"],
-    patterns: [re("unconscious"), re("not\\s+responding"), re("unresponsive"), re("collaps"), re("passed\\s+out"), re("fainted"), re("बेहोश"), re("होश\\s*नहीं"), re("behosh")],
+    patterns: [re("unconscious"), re("unconcious"), re("(won['’]?t|wont|will\\s+not|not|cannot|can['’]?t)\\s+(wake|waking)"), re("not\\s+responding"), re("unresponsive"), re("collaps"), re("passed\\s+out"), re("fainted"), re("बेहोश"), re("होश\\s*नहीं"), re("behosh")],
     now: "Call 108 or 112 now.", whileWaiting: "Check they are breathing. If not, tell the call-taker; they will guide you." },
   { id: "poisoning", label: "Poisoning or overdose", services: ["icu", "trauma_emergency"],
     patterns: [re("poison"), re("overdose"), re("swallowed\\s+(acid|pesticide|phenyl|kerosene|tablets|pills|bleach)"), re("(drank|consumed|ate|took)\\s+(pesticide|rat\\s+poison|insecticide|phenyl)"), re("ज़हर|जहर"), re("कीटनाशक"), re("zeher")],
@@ -61,7 +61,7 @@ export const RED_FLAGS: RedFlagCategory[] = [
     patterns: [re("anaphyla"), re("(throat|tongue|face|lips)\\s+(is\\s+)?(swell|closing|swollen)"), re("swelling\\s+of\\s+(the\\s+)?(throat|tongue|face)")],
     now: "Call 108 or 112 now.", whileWaiting: "Stay upright or lie with legs raised if faint, and use an adrenaline pen if one has been prescribed." },
   { id: "self_harm", label: "Thoughts of harming yourself", services: ["trauma_emergency", "icu"],
-    patterns: [re("suicid"), re("kill\\s+myself"), re("want\\s+to\\s+die"), re("end\\s+my\\s+life"), re("self[- ]?harm"), re("आत्महत्या"), re("मरना\\s*चाह"), re("जान\\s*दे")],
+    patterns: [re("suicid"), re("kill\\s+myself"), re("want\\s+to\\s+die"), re("end\\s+my\\s+life"), re("how\\s+to\\s+(overdose|die|kill\\s+(myself|yourself))"), re("(thinking\\s+of|going\\s+to)\\s+(dying|killing\\s+myself)"), re("don['’]?t\\s+want\\s+to\\s+(live|be\\s+alive)"), re("self[- ]?harm"), re("आत्महत्या"), re("मरना\\s*चाह"), re("जान\\s*दे")],
     now: "You are not alone. If you might act on this, call 112 now or go to the nearest emergency room, and please stay with someone you trust.",
     helpline: { name: "Tele-MANAS (free, 24 hours)", number: "14416" } },
   { id: "meningitis", label: "Fever with confusion or stiff neck", services: ["icu", "ct_scan", "trauma_emergency"],
@@ -81,8 +81,21 @@ export interface RedFlagResult {
 
 const NUMBERS = [{ name: "Emergency (all services)", number: "112" }, { name: "Ambulance", number: "108" }];
 
+/**
+ * Words that look like an emergency but are not one: a symptom the person says they do NOT have ("no chest pain"), a question about the
+ * subject ("what are the signs of a stroke", "how to prevent a heart attack"), something long past ("a heart attack ten years ago") and
+ * talk about a film, an insurance claim and the like. Those parts are removed before the check. Deliberately narrow: "not breathing",
+ * "not responding" and "can't breathe" are real emergencies and are never masked, and anything left over is still checked, so
+ * "no fever but severe chest pain" is still an emergency.
+ */
+const NEGATED = /\b(?:do(?:es)?\s+not|don['’]?t|doesn['’]?t|did\s+not|didn['’]?t|no|without|never(?:\s+had)?|denies|denied)\s+(?:have\s+|had\s+|having\s+|feel\s+|any\s+|a\s+|an\s+)*(?:chest\s+pains?|pain\s+in\s+(?:the\s+)?chest|bleeding|seizures?|fits?|heart\s+attack|stroke|breathlessness|breathing\s+problems?|fever|accident|injury|snake\s*bite)\b/giu;
+const NOT_NOW = /\b(?:how\s+to\s+(?:prevent|avoid|reduce|lower)|ways\s+to\s+(?:prevent|avoid)|what\s+(?:are|is)\s+(?:the\s+)?(?:signs?|symptoms?|causes?|risks?|meaning)|insurance|claim|movie|film|scene|serial|novel|documentary|quiz|school\s+project|(?:years?|decades?)\s+ago|last\s+year|as\s+a\s+child|used\s+to\s+(?:have|get))\b/iu;
+export function maskNonEmergency(text: string): string {
+  return text.replace(NEGATED, " ").split(/(?<=[.?!;])\s+|\bbut\b|\band\s+now\b|\bnow\b/iu).filter((clause) => !NOT_NOW.test(clause)).join(" . ");
+}
+
 export function checkRedFlags(text: string): RedFlagResult | null {
-  const t = cleanText(text ?? "");
+  const t = maskNonEmergency(cleanText(text ?? ""));
   const hits: RedFlagResult["categories"] = [];
   for (const cat of RED_FLAGS) {
     for (const p of cat.patterns) {

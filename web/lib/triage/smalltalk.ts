@@ -25,4 +25,10 @@ export function isSmallTalk(text: string): boolean {
 
 /** Words that mean the person is asking for a place of care. Such a message is never small talk, whatever the model thinks. */
 const PLACE_OF_CARE = /hospital|clinic|doctor|physician|dispensary|nursing home|health cent|medical cent|pharmacy|chemist|ambulance|emergency room|phc|अस्पताल|क्लिनिक|डॉक्टर|दवाखाना|अस्पताल|மருத்துவமனை|கிளினிக்|மருத்துவர்|டாக்டர்|ఆసుపత్రి|క్లినిక్|డాక్టర్|వైద్యుడు|ആശുപത്രി|ക്ലിനിക്|ഡോക്ടർ/iu;
-export const asksForPlaceOfCare = (text: string) => PLACE_OF_CARE.test((text ?? "").normalize("NFC"));
+const ABOUT_THE_APP = /\b(?:are|r)\s+(?:you|u)\b.{0,14}\b(?:doctor|physician|hospital|clinic|nurse|human|real|a\s+bot)\b/iu;   // "are you a doctor?" is a question about the app
+export const isAboutTheApp = (text: string) => ABOUT_THE_APP.test((text ?? "").normalize("NFC"));
+export const asksForPlaceOfCare = (text: string) => { const t = (text ?? "").normalize("NFC"); return PLACE_OF_CARE.test(t) && !ABOUT_THE_APP.test(t); };
+
+/** Asking the app for medicine, a dose, a diagnosis or a home remedy. The app never gives these; it says so, and still helps find a doctor. */
+const ADVICE = /\b(?:dose|dosage|\d+\s?mg|tablets?|pills?|medicines?|medications?|antibiotics?|painkillers?|prescri(?:be|ption)|home\s+remed(?:y|ies)|cure\s+for|diagnos(?:e|is)|what(?:'s|\s+is)\s+wrong\s+with\s+me|do\s+i\s+have|should\s+i\s+take|can\s+i\s+(?:stop|take|give|skip)|how\s+(?:do\s+i\s+|to\s+|can\s+i\s+)?treat|treat\s+(?:it\s+)?at\s+home)\b/iu;
+export const asksForAdvice = (text: string) => ADVICE.test((text ?? "").normalize("NFC"));

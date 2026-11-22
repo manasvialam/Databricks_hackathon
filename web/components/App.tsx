@@ -29,10 +29,15 @@ interface Candidate { label: string; state: string; district: string; lat: numbe
 type View = "idle" | "loading" | "result" | "pickcare" | "needplace" | "error" | "chat";
 
 async function api<T>(url: string, body?: unknown): Promise<T> {
-  const res = await fetch(url, body === undefined ? { cache: "no-store" } : { method: "POST", cache: "no-store", headers: { "content-type": "application/json" }, body: JSON.stringify(body) });
+  let res: Response;
+  try { res = await send(url, body); } catch { await new Promise((r) => setTimeout(r, 500)); res = await send(url, body); }   // a dropped connection is retried once
   const data = await res.json().catch(() => ({}));
   if (!res.ok) throw Object.assign(new Error((data as { error?: string }).error ?? "error"), { data, status: res.status });
   return data as T;
+}
+function send(url: string, body?: unknown): Promise<Response> {
+  return fetch(url, body === undefined ? { cache: "no-store" } : { method: "POST", cache: "no-store", headers: { "content-type": "application/json" }, body: JSON.stringify(body) });
+
 }
 
 const safeGet = (k: string) => { try { return localStorage.getItem(k); } catch { return null; } };
@@ -265,7 +270,7 @@ export function App() {
     if (cur && !g) setThinking(true); else { setRec(null); setView("loading"); }
     try {
       const r = await api<{
-        triage: { emergency: RedFlagResult | null; urgency: Urgency; services: ServiceId[]; understood: boolean; followUps: string[]; note: string | null; need: string | null; specialties?: string[]; chat?: boolean };
+        triage: { emergency: RedFlagResult | null; urgency: Urgency; services: ServiceId[]; understood: boolean; followUps: string[]; note: string | null; need: string | null; specialties?: string[]; chat?: boolean; advice?: boolean };
         location: { lat: number; lon: number; matched: string } | null;
       }>("/api/triage", { message: msg, history: history.current.slice(0, -1), lang });
       const tr = r.triage;
@@ -282,11 +287,14 @@ export function App() {
       // Small talk (hello, thanks): no symptom and no request for care, so answer it and ask what is wrong; show no hospitals.
       if (tr.chat && !tr.emergency && !g) {
         setThinking(false);
-        addAssistant(t(lang, "chatAsk"));
+        addAssistant(t(lang, tr.advice ? "adviceNote" : "chatAsk"));
         endVoiceTurn();
         if (!cur) setView("chat");
         return;
       }
+
+      // Asked for medicine, a dose or a diagnosis: say plainly that the app gives none of these, then carry on helping to find care.
+      if (tr.advice && !tr.emergency && !g) addAssistant(t(lang, "adviceNote"), true);
 
       // Keep the hospital unless what was added needs a kind of care it does not have.
       if (cur && !tr.emergency && !g) {

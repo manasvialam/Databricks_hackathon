@@ -5,7 +5,7 @@ import { checkRedFlags, type RedFlagResult } from "./redflags";
 import { matchNeeds, maxUrgency, placeCandidates, type Condition } from "./mapping";
 import type { Lang } from "../i18n";
 import { isSpecialtyId, matchSpecialties } from "../specialty";
-import { asksForPlaceOfCare, isSmallTalk } from "./smalltalk";
+import { asksForAdvice, asksForPlaceOfCare, isAboutTheApp, isSmallTalk } from "./smalltalk";
 
 export interface LlmExtraction {
   symptoms: string[];
@@ -16,6 +16,7 @@ export interface LlmExtraction {
   location?: string | null;
   summary?: string;
   specialties?: string[];           // specialty category ids the need points to (lib/specialty.ts)
+  adviceRequest?: boolean;          // asks for medicine, a dose, a diagnosis or a home remedy (the app gives none of these)
   careRequest?: boolean;            // false for a greeting, thanks or unrelated chat: the person has not asked for care
 }
 /** `lang` is the interface language: follow-up questions and the summary should come back in it. */
@@ -31,6 +32,7 @@ export interface TriageResult {
   understood: boolean;              // false when no service could be identified
   lowConfidence: boolean;
   specialties: string[];            // specialty categories the need points to, best first (model first, keyword match as fallback)
+  advice: boolean;                  // the person asked for medicine, a dose, a diagnosis or a home remedy: say plainly that the app does not give those
   chat: boolean;                    // small talk: no symptom and no request for care, so no hospitals should be shown
   need: string | null;              // the model's plain-English restatement of the need, used to judge hospital fit
   source: "rules" | "llm+rules";
@@ -47,7 +49,7 @@ export function validateExtraction(x: unknown): LlmExtraction | null {
   const conds = Array.isArray(o.possibleConditions)
     ? o.possibleConditions.filter((c): c is Record<string, string> => !!c && typeof (c as Record<string, unknown>).name === "string").slice(0, 3).map((c) => ({ name: String(c.name).slice(0, 80), why: String(c.why ?? "").slice(0, 200) }))
     : [];
-  return { symptoms: arr(o.symptoms).slice(0, 8), urgency: urg, services: arr(o.services).filter(isServiceId), possibleConditions: conds, followUps: arr(o.followUps).slice(0, 2), location: typeof o.location === "string" ? o.location.slice(0, 80) : null, summary: typeof o.summary === "string" ? o.summary.slice(0, 300) : undefined, specialties: arr(o.specialties).filter(isSpecialtyId).slice(0, 3), careRequest: o.careRequest === false ? false : true };
+  return { symptoms: arr(o.symptoms).slice(0, 8), urgency: urg, services: arr(o.services).filter(isServiceId), possibleConditions: conds, followUps: arr(o.followUps).slice(0, 2), location: typeof o.location === "string" ? o.location.slice(0, 80) : null, summary: typeof o.summary === "string" ? o.summary.slice(0, 300) : undefined, specialties: arr(o.specialties).filter(isSpecialtyId).slice(0, 3), careRequest: o.careRequest === false ? false : true, adviceRequest: o.adviceRequest === true };
 }
 
 export { ASSISTANT_PREFIX };
@@ -58,7 +60,7 @@ export async function triage(text: string, opts: { history?: string[]; llm?: Llm
   const said = history.filter((h) => !h.startsWith(ASSISTANT_PREFIX));
   let emergency = checkRedFlags([...said.slice(-4), text].join(" . "));
   if (!emergency && isSmallTalk(text)) {
-    return { emergency: null, urgency: "routine", services: [], conditions: [], followUps: [], placeCandidates: [], understood: false, lowConfidence: false, specialties: [], chat: true, need: null, source: "rules", note: null };
+    return { emergency: null, urgency: "routine", services: [], conditions: [], followUps: [], placeCandidates: [], understood: false, lowConfidence: false, specialties: [], chat: true, advice: false, need: null, source: "rules", note: null };
   }
   const rules = matchNeeds(text);
   let llm: LlmExtraction | null = null;
@@ -84,11 +86,15 @@ export async function triage(text: string, opts: { history?: string[]; llm?: Llm
   const places = placeCandidates(text);
   if (llm?.location) places.unshift(llm.location);
 
-  const chat = !emergency && !!llm && llm.careRequest === false && services.length === 0 && !asksForPlaceOfCare(text);   // asking for a hospital or clinic is always a request for care
+  const specialties = [...new Set([...(llm?.specialties ?? []), ...matchSpecialties(text)])].slice(0, 3);
+  // No care asked for: the model says so, or (when the model gave no answer) nothing in the message points to a service or a specialty.
+  // Asking for a hospital or a clinic is always a request for care.
+  const chat = !emergency && services.length === 0 && (isAboutTheApp(text) || (!asksForPlaceOfCare(text) && (llm ? llm.careRequest === false : specialties.length === 0)));
+  const advice = !emergency && (asksForAdvice(text) || !!llm?.adviceRequest);
   return {
-    emergency, urgency, services: services.slice(0, 4), conditions, followUps, chat,
+    emergency, urgency, services: services.slice(0, 4), conditions, followUps, chat, advice,
     placeCandidates: [...new Set(places)], understood: services.length > 0, lowConfidence: !!rules && rules.confidence === "low" && !llm,
-    specialties: [...new Set([...(llm?.specialties ?? []), ...matchSpecialties(text)])].slice(0, 3),
+    specialties,
     need: llm?.summary ?? null,
     source: llm ? "llm+rules" : "rules",
     note: llm ? null : "Understood with built-in rules; the language model was not used for this message.",
