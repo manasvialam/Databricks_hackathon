@@ -192,9 +192,9 @@ export function EmergencyCard({ gate, lang, online }: { gate: RedFlagResult; lan
       <h1 id="em-h" data-read>{t(lang, "emergencyTitle")}</h1>
       <p data-read>{t(lang, "emergencyNow")}</p>
       <div className="emerg-call" data-read="list">
-        <a href="tel:108" className="tap"><span className="ring"><Phone size={22} aria-hidden /></span><div>{t(lang, "callNow", { n: 108 })}<span>{t(lang, "ambulance")}</span></div></a>
-        <a href="tel:112" className="tap"><span className="ring"><Phone size={22} aria-hidden /></span><div>{t(lang, "callNow", { n: 112 })}<span>{t(lang, "emergencyAll")}</span></div></a>
-        {helpline && <a href="tel:14416" className="tap"><span className="ring"><Phone size={22} aria-hidden /></span><div>{t(lang, "callNow", { n: 14416 })}<span>{t(lang, "teleManas")}</span></div></a>}
+        <a href="tel:108" className="tap"><span className="em-ring"><Phone size={22} aria-hidden /></span><div>{t(lang, "callNow", { n: 108 })}<span>{t(lang, "ambulance")}</span></div></a>
+        <a href="tel:112" className="tap"><span className="em-ring"><Phone size={22} aria-hidden /></span><div>{t(lang, "callNow", { n: 112 })}<span>{t(lang, "emergencyAll")}</span></div></a>
+        {helpline && <a href="tel:14416" className="tap"><span className="em-ring"><Phone size={22} aria-hidden /></span><div>{t(lang, "callNow", { n: 14416 })}<span>{t(lang, "teleManas")}</span></div></a>}
       </div>
       {cats.map((c) => {
         // the gate's own text is English; a translation replaces it whole, so a card never mixes two languages

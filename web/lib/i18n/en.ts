@@ -129,6 +129,7 @@ export const en = {
   whyGeneralFit: "Ordered by how well each nearby hospital's own records match what you described, then by distance.",
   stillFits: "This hospital still looks right for that.",
   switchedCare: "What you added needs a different kind of care, so I looked again.",
+  emergencyStays: "I am keeping the emergency advice on screen because you mentioned it earlier. If anyone is still unwell, call 108 now.",
   confirmQ: "Is this where you are?",
   confirmYes: "Yes, that is right",
   confirmNo: "No, change it",

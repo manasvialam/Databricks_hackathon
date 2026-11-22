@@ -64,6 +64,7 @@ export function App() {
 
   const said = thread.find((m) => m.role === "user")?.text ?? null;      // the first thing the person said: used on the hospital card
   const history = useRef<string[]>([]);
+  const stayNoted = useRef(false);               // "the emergency advice stays" is said once per conversation
   const asked = useRef(0);                      // follow-up questions asked in this conversation: at most 2
   const need = useRef<string | null>(null);
   const [confirm, setConfirm] = useState<{ loc: Loc; text: string; place: string } | null>(null);
@@ -214,7 +215,7 @@ export function App() {
     setThread((th) => [...th, { role: "user", text: msg }]);
     setText(""); setCaption(""); setCareNote(null); setErrMsg(null); setNotice(null);
     const g = checkRedFlags(msg);              // runs in the browser: works with no network
-    setGate(g);
+    if (g) setGate(g);
     history.current = [...history.current, msg].slice(-8);
     if (cur && !g) setThinking(true); else { setRec(null); setView("loading"); }
     try {
@@ -223,12 +224,14 @@ export function App() {
         location: { lat: number; lon: number; matched: string } | null;
       }>("/api/triage", { message: msg, history: history.current.slice(0, -1), lang });
       const tr = r.triage;
+      setThinking(false);
       need.current = tr.need ?? msg;
-      if (tr.emergency) setGate(tr.emergency);
+      if (tr.emergency) setGate(tr.emergency); else if (!g) setGate(null);
       let at = locRef.current;
       const detected: Loc | null = !at && r.location ? { lat: r.location.lat, lon: r.location.lon, label: r.location.matched } : null;
       let services = tr.emergency && !tr.services.length ? tr.emergency.services.slice(0, 2) : tr.services;
       const urgency: Urgency = tr.emergency ? "emergency" : tr.urgency;
+      if (tr.emergency && !g && !stayNoted.current) { stayNoted.current = true; addAssistant(t(lang, "emergencyStays"), true); }   // an emergency mentioned earlier stays on screen; say so instead of staying silent
       const follow = tr.emergency || asked.current >= 2 ? null : tr.followUps[0] ?? null;
 
       // Keep the hospital unless what was added needs a kind of care it does not have.
@@ -262,7 +265,7 @@ export function App() {
 
   // back on the home screen the conversation starts over
   useEffect(() => {
-    if (view === "idle" && !gate) { setThread([]); setThinking(false); history.current = []; need.current = null; asked.current = 0; }
+    if (view === "idle" && !gate) { setThread([]); setThinking(false); history.current = []; need.current = null; asked.current = 0; stayNoted.current = false; }
   }, [view, gate]);
 
   const toggleMic = useCallback(() => {
@@ -316,12 +319,13 @@ export function App() {
   // stop reading when the language, the chosen hospital or the open sheet changes; an emergency card is read out loud as soon as it appears
   useEffect(() => { ra.stop(); }, [lang, sel, sheet]); // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => { if (ra.state.skipped) setNotice(t(lang, "readingSkipped")); }, [ra.state.skipped]); // eslint-disable-line react-hooks/exhaustive-deps
-  const emergencyRead = useRef<RedFlagResult | null>(null);
+  // The emergency card is read aloud once, when an emergency first appears in a conversation: not again for every later message.
+  const emergencyRead = useRef(false);
   useEffect(() => {
-    if (!gate || emergencyRead.current === gate) return;
-    emergencyRead.current = gate;
-    const id = setTimeout(() => { ra.start(document.querySelector(".emerg") ?? document); }, 350);
-    return () => clearTimeout(id);
+    if (!gate) { emergencyRead.current = false; return; }
+    if (emergencyRead.current) return;
+    emergencyRead.current = true;
+    setTimeout(() => { ra.start(document.querySelector(".emerg") ?? document); }, 350);   // no cleanup: a quick second gate object must not cancel the one reading
   }, [gate]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const pickPlace = (c: PlaceChoice) => setLocation({ lat: c.lat, lon: c.lon, label: c.state ? `${c.label}, ${c.state}` : c.label });

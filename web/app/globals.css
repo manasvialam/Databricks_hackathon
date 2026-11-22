@@ -258,7 +258,7 @@ h1, h2, h3, p, blockquote { margin: 0; }
   display: grid; grid-template-columns: 44px 1fr; align-items: center; gap: 12px; text-decoration: none; color: var(--ink);
   background: #fff; border-radius: 18px; padding: 10px 14px 10px 10px; min-height: 64px; font-weight: 700; font-size: 19px; letter-spacing: -0.015em;
 }
-.emerg-call a .ring { width: 44px; height: 44px; border-radius: 50%; background: var(--danger-soft); color: var(--danger); display: grid; place-items: center; }
+.emerg-call a .em-ring { width: 44px; height: 44px; border-radius: 50%; background: var(--danger-soft); color: var(--danger); display: grid; place-items: center; }
 .emerg-call a span { display: block; font-size: 13.5px; font-weight: 500; color: var(--ink-2); letter-spacing: 0; }
 .emerg-cat { margin-top: 14px; background: rgba(255, 255, 255, 0.14); border-radius: 16px; padding: 12px 14px; }
 .emerg-cat p { margin: 0; font-size: 15px; }
