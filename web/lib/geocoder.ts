@@ -80,6 +80,9 @@ export function geocode(query: string, stateHint?: string | null, opts: { strict
     return p ? ok(p[0], p[1], "pin", `PIN ${digits}`, d.states[p[2]] ?? null, p[3], 1) : { status: "not_found", message: `PIN ${digits} is not in the India Post directory` };
   }
 
+  const addr = geocodeAddress(q);
+  if (addr) return addr;
+
   const m = q.match(/^\s*(-?\d+(?:\.\d+)?)\s*[,; ]\s*(-?\d+(?:\.\d+)?)\s*$/);
   if (m) {
     const a = parseFloat(m[1]), b = parseFloat(m[2]);
@@ -107,8 +110,58 @@ export function geocode(query: string, stateHint?: string | null, opts: { strict
     const close = Object.keys(d.places).map((k) => [k, similarity(key, k)] as const).filter(([, s]) => s >= FUZZY).sort((a, b) => b[1] - a[1]).slice(0, 3);
     if (close.length) { cands = close.flatMap(([k]) => d.places[k]); how = "fuzzy"; }
   }
-  return resolve(cands, how, st, name);
+  const first = resolve(cands, how, st, name);
+  if (first.status !== "not_found" || parts.length < 2) return first;
+  // a street or building name came first: try the other parts of the address (town, district) in order
+  for (const part of parts.slice(1)) {
+    const clean = part.replace(/(?<![\d.])[1-9]\d{2} ?\d{3}(?!\d)/g, "").trim();
+    if (!clean || normState(clean) || NOISE_WORDS.has(lkey(clean))) continue;
+    const c = d.places[canonCity(clean)];
+    if (c?.length) return resolve(c, "exact", st, clean);
+  }
+  return first;
 }
+
+// ---------- full addresses ("kallipadam po, shoranur 2, palakkad, kerala 679122") -----------------------------------------
+const NOISE_WORDS = new Set(["india", "po", "p", "o", "ps", "post", "office", "dist", "district", "tamil", "nadu"]);
+const SUFFIX_WORDS = new Set(["po", "ps", "road", "rd", "main", "street", "st", "nagar", "colony", "school", "hospital", "clinic", "college", "bus", "stand", "stop", "junction", "cross", "layout"]);
+const titleCase = (s: string) => s.replace(/\b\p{L}/gu, (c) => c.toUpperCase());
+
+/**
+ * An address that contains a PIN code. The PIN is the anchor (India Post gives one position per PIN), so a street or
+ * school name can never make the lookup fail. If another part of the address names a locality, village or post
+ * office in the same state and within 20 km of the PIN position, that more specific position is used instead.
+ */
+function geocodeAddress(q: string): GeocodeResult | null {
+  const pm = q.match(/(?<![\d.])([1-9]\d{2}) ?(\d{3})(?![\d])/);
+  if (!pm || /^\s*[\d\s-]+$/.test(q)) return null;
+  const d = load();
+  const pin = pm[1] + pm[2];
+  const row = d.pins[pin];
+  if (!row) return null;
+  const rest = q.replace(pm[0], " ").split(",").map((x) => x.trim()).filter((x) => x && !NOISE_WORDS.has(lkey(x)));
+  const state = d.states[row[2]] ?? null;
+  let best: { r: PlaceRow; km: number } | null = null;
+  for (const part of rest) {
+    const ws = words(part);
+    const variants = new Set<string>([ws.join("")]);
+    const trimmed = [...ws]; while (trimmed.length > 1 && SUFFIX_WORDS.has(trimmed[trimmed.length - 1])) trimmed.pop();
+    variants.add(trimmed.join(""));
+    for (const v of variants) {
+      for (const pr of d.places[canonCityKey(v)] ?? []) {
+        if (pr[0] !== row[2] || pr[4] !== "p") continue;          // only a post office or locality is more exact than the PIN; a city or district centre is not
+        const km = haversineKm(row[0], row[1], pr[2], pr[3]);
+        if (km <= 20 && (!best || km < best.km)) best = { r: pr, km };
+      }
+    }
+    if (best) break;
+  }
+  const town = [...rest].reverse().find((x) => !normState(x) && words(x).length) ?? rest[0] ?? null;
+  const label = town ? `${titleCase(town.replace(/\s+\d+$/, ""))} ${pin}` : `PIN ${pin}`;
+  if (best) return ok(best.r[2], best.r[3], LEVEL_NAME[best.r[4]], `${best.r[5]} ${pin}`, state, best.r[1] || row[3], 0.85, "matched the locality in the address; the exact street is not in our data");
+  return ok(row[0], row[1], "pin", label, state, row[3], 0.8, "located by the PIN code in the address; the exact street is not in our data");
+}
+const canonCityKey = (k: string) => load().cityAlias[k] ?? k;
 
 // ---------- names written in an Indian script -----------------------------------------------------------------------
 let phonIdx: Map<string, string[]> | null = null;

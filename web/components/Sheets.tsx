@@ -1,12 +1,13 @@
 "use client";
 import { useCallback, useEffect, useRef, useState } from "react";
-import { BadgeCheck, Check, ExternalLink, Minus, Navigation, Phone, Plus, ShieldQuestion, Volume2, X } from "lucide-react";
+import { BadgeCheck, Check, Clock, ExternalLink, LocateFixed, MapPin, Minus, Navigation, Phone, Plus, Search, ShieldQuestion, Volume2, X } from "lucide-react";
 import type { ResultDto } from "@/lib/recommend";
 import type { RedFlagResult } from "@/lib/triage/redflags";
 import type { Contribution, Preferences } from "@/lib/types";
 import { emergencyText, LANGS, say, svcLabel, t, termText, type Lang, type Msg } from "@/lib/i18n";
 import type { NearbyHospital } from "@/lib/nearby";
 import { placeLine } from "./Slip";
+import { PRESET_PLACES } from "@/lib/places";
 import { Tx, TxText } from "./Tx";
 
 export type CardAnswer = "yes" | "no" | "unknown";
@@ -211,30 +212,101 @@ export function EmergencyCard({ gate, lang, online }: { gate: RedFlagResult; lan
   );
 }
 
-export function HospitalSheet({ h, lang, onClose, onListen }: { h: NearbyHospital; lang: Lang; onClose: () => void; onListen?: () => void }) {
-  const dir = `https://www.google.com/maps/dir/?api=1&destination=${h.lat},${h.lon}`;
+export function HospitalWhySheet({ h, lang, onClose, onListen }: { h: NearbyHospital; lang: Lang; onClose: () => void; onListen?: () => void }) {
+  const pos: string[] = [t(lang, "whyNear", { km: h.km })];
+  if (h.registry === "verified") pos.push(t(lang, "pmjayListed"));
+  if (h.nabh) pos.push(t(lang, "nabh"));
+  if (h.open24h) pos.push(t(lang, "open24"));
+  if (h.services.length) pos.push(t(lang, "whyServices", { n: h.services.length }));
   return (
-    <Sheet title={h.name} onClose={onClose} lang={lang} onListen={onListen}>
-      <p className="muted" lang="en">{placeLine(h)}</p>
-      <p className="small" style={{ marginTop: 4 }}>{t(lang, "kmAway", { km: h.km })}</p>
-      <div className="tags" style={{ marginTop: 12 }}>
-        {h.registry && <span className="badge" data-tier={h.registry}>{h.registry === "verified" ? <BadgeCheck size={16} aria-hidden /> : <ShieldQuestion size={16} aria-hidden />}{t(lang, h.registry === "verified" ? "pmjayListed" : "registryPossible")}</span>}
-        {h.nabh && <span className="tag">{t(lang, "nabh")}</span>}
-        {h.open24h && <span className="tag">{t(lang, "open24")}</span>}
-      </div>
+    <Sheet title={t(lang, "whyThis")} onClose={onClose} lang={lang} onListen={onListen}>
+      <p className="muted">{t(lang, "whyGeneral")}</p>
       <div className="block">
-        <h3 className="block-h">{t(lang, "servicesFound")}</h3>
-        {h.services.length
-          ? <div className="tags">{h.services.map((id) => <span key={id} className="tag">{svcLabel(id, lang)}</span>)}</div>
-          : <p className="small">{t(lang, "noServicesYet")}</p>}
+        <ul className="why-list">{pos.map((x) => <li key={x}><span className="why-ico pos"><Plus size={14} strokeWidth={2.5} aria-hidden /></span><span>{x}</span></li>)}</ul>
       </div>
-      <div className="btn-row actions">
-        {h.phone
-          ? <a className="btn btn-primary tap" href={`tel:${h.phone.replace(/[^\d+]/g, "")}`}><Phone size={18} aria-hidden />{t(lang, "call")}</a>
-          : <span className="btn" aria-disabled="true"><Phone size={18} aria-hidden />{t(lang, "call")}</span>}
-        <a className="btn btn-soft tap" href={dir} target="_blank" rel="noopener noreferrer"><Navigation size={18} aria-hidden />{t(lang, "directions")}</a>
+      {h.warnings.length > 0 && (
+        <div className="block">
+          <h3 className="block-h">{t(lang, "negatives")}</h3>
+          <ul className="why-list">{h.warnings.map((w) => <li key={w.text}><span className="why-ico neg"><Minus size={14} strokeWidth={2.5} aria-hidden /></span><span><Tx m={w} lang={lang} /></span></li>)}</ul>
+        </div>
+      )}
+      <div className="block card-flat" style={{ display: "grid", gap: 8 }}>
+        {h.registry && <p className="small">{t(lang, "registryNote")}</p>}
+        <p className="small">{t(lang, "estimate")}</p>
+        <p className="small">{t(lang, "notAffiliated")}</p>
       </div>
-      {!h.phone && <p className="tiny" style={{ marginTop: 8, textAlign: "center" }}>{t(lang, "noPhone")}</p>}
+    </Sheet>
+  );
+}
+
+export interface PlaceChoice { label: string; state?: string; district?: string; lat: number; lon: number }
+
+/** Uber Eats-style location picker: search a town, PIN or full address, use the device location, or reuse a recent place. */
+export function LocSheet({ lang, busy, msg, candidates, recent, hint, confirm, onYes, onNo, onDevice, onLookup, onPick, onClose, onListen }: {
+  lang: Lang; busy: boolean; msg: string | null; candidates: PlaceChoice[]; recent: PlaceChoice[]; hint?: string | null;
+  confirm?: { text: string; place: string } | null; onYes?: () => void; onNo?: () => void;
+  onDevice: () => void; onLookup: (q: string) => void; onPick: (c: PlaceChoice) => void; onClose: () => void; onListen?: () => void;
+}) {
+  const [q, setQ] = useState("");
+  if (confirm) {
+    return (
+      <Sheet title={t(lang, "locSheetTitle")} onClose={onClose} lang={lang} onListen={onListen}>
+        <div className="confirm">
+          <p className="ask" data-read>{confirm.text}</p>
+          <p className="place-chip" data-read lang="en"><MapPin size={18} aria-hidden />{confirm.place}</p>
+          <div className="btn-row">
+            <button type="button" className="btn btn-primary tap" onClick={onYes}>{t(lang, "confirmYes")}</button>
+            <button type="button" className="btn tap" onClick={onNo}>{t(lang, "confirmNo")}</button>
+          </div>
+        </div>
+      </Sheet>
+    );
+  }
+  return (
+    <Sheet title={t(lang, "locSheetTitle")} onClose={onClose} lang={lang} onListen={onListen}>
+      {hint && <p className="muted" style={{ marginBottom: 12 }}>{hint}</p>}
+      <form className="searchbar" onSubmit={(e) => { e.preventDefault(); if (q.trim()) onLookup(q); }}>
+        <Search size={18} aria-hidden />
+        <input autoFocus value={q} onChange={(e) => setQ(e.target.value)} placeholder={t(lang, "locSearchPh")} aria-label={t(lang, "locSearchPh")} autoComplete="off" enterKeyHint="search" />
+        {q.trim() && <button type="submit" className="cap-btn tap" data-kind="send" aria-label={t(lang, "go")} disabled={busy}><Search size={18} aria-hidden /></button>}
+      </form>
+      <button type="button" className="loc-row tap" onClick={onDevice} disabled={busy}>
+        <span className="loc-ico"><LocateFixed size={18} aria-hidden /></span>
+        <span>{busy ? t(lang, "locating") : t(lang, "useCurrent")}</span>
+      </button>
+      {msg && <p className="small" role="status" style={{ padding: "4px 4px 0" }}>{msg}</p>}
+      {candidates.length > 0 && (
+        <div className="block" style={{ marginTop: 14 }}>
+          {candidates.map((c) => (
+            <button key={`${c.label}${c.state}${c.lat}`} type="button" className="loc-row tap" onClick={() => onPick(c)}>
+              <span className="loc-ico"><MapPin size={18} aria-hidden /></span>
+              <span><span lang="en">{c.label}</span>{c.district && <small lang="en">{c.district}, {c.state}</small>}</span>
+            </button>
+          ))}
+        </div>
+      )}
+      {!candidates.length && (
+        <div className="block" style={{ marginTop: 14 }}>
+          <h3 className="block-h">{t(lang, "suggestedPlaces")}</h3>
+          {PRESET_PLACES.map((c) => (
+            <button key={c.query} type="button" className="loc-row tap" onClick={() => onLookup(c.query)} disabled={busy}>
+              <span className="loc-ico"><MapPin size={18} aria-hidden /></span>
+              <span><span lang="en">{c.label}</span><small lang="en">{c.sub}</small></span>
+            </button>
+          ))}
+        </div>
+      )}
+      {recent.length > 0 && !candidates.length && (
+        <div className="block" style={{ marginTop: 14 }}>
+          <h3 className="block-h">{t(lang, "recentPlaces")}</h3>
+          {recent.map((c) => (
+            <button key={`${c.label}${c.lat}`} type="button" className="loc-row tap" onClick={() => onPick(c)}>
+              <span className="loc-ico"><Clock size={18} aria-hidden /></span>
+              <span lang="en">{c.label}</span>
+            </button>
+          ))}
+        </div>
+      )}
     </Sheet>
   );
 }
