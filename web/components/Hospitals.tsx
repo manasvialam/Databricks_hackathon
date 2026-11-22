@@ -1,6 +1,6 @@
 "use client";
 import { useMemo, useState } from "react";
-import { BadgeCheck, ChevronRight, Clock, Hand, Navigation, Phone } from "lucide-react";
+import { BadgeCheck, ChevronRight, Clock, Hand, Phone } from "lucide-react";
 import type { NearbyHospital } from "@/lib/nearby";
 import { t, type Lang } from "@/lib/i18n";
 import { specLabel } from "@/lib/specialty";
@@ -108,13 +108,12 @@ export function HospitalCard({ h, lang, need, guidance, origin, onWhy, onDoor, o
       )}
       {warning && <p className="callout"><Tx m={warning} lang={lang} /></p>}
 
-      <div className="btn-row actions">
+      <div className="actions call-row">
         {h.phone
           ? <a className="btn btn-primary tap" href={`tel:${h.phone.replace(/[^\d+]/g, "")}`}><Phone size={18} aria-hidden />{t(lang, "call")}</a>
           : <span className="btn" aria-disabled="true"><Phone size={18} aria-hidden />{t(lang, "call")}</span>}
-        <button type="button" className="btn btn-soft tap" onClick={onDirections}><Navigation size={18} aria-hidden />{t(lang, "directions")}</button>
       </div>
-      <RideButtons origin={origin} dest={{ lat: h.lat, lon: h.lon, name: h.name }} lang={lang} />
+      <RideButtons origin={origin} dest={{ lat: h.lat, lon: h.lon, name: h.name }} lang={lang} onDirections={onDirections} />
       {!h.phone && <p className="tiny" style={{ marginTop: 8, textAlign: "center" }}>{t(lang, "noPhone")}</p>}
 
       {guidance && (

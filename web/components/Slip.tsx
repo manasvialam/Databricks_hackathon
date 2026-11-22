@@ -1,7 +1,7 @@
 "use client";
 import { Name } from "./Name";
 import { useEffect, useRef, useState } from "react";
-import { AlertTriangle, BadgeCheck, ChevronRight, Clock, Hand, Navigation, Phone, ShieldQuestion } from "lucide-react";
+import { AlertTriangle, BadgeCheck, ChevronRight, Clock, Hand, Phone, ShieldQuestion } from "lucide-react";
 import type { ResultDto } from "@/lib/recommend";
 import { svcLabel, t, type Lang } from "@/lib/i18n";
 import { specLabel } from "@/lib/specialty";
@@ -134,13 +134,12 @@ export function Slip({ r, lang, services, origin, onWhy, onDirections, onDoor }:
       {!r.solid && <p className="callout"><AlertTriangle size={17} aria-hidden /><span>{t(lang, "weakNote")}</span></p>}
       {r.solid && warning && <p className="callout"><AlertTriangle size={17} aria-hidden /><span><Tx m={warning} lang={lang} /></span></p>}
 
-      <div className="btn-row actions">
+      <div className="actions call-row">
         {phone
           ? <a className="btn btn-primary tap" href={`tel:${phone.replace(/[^\d+]/g, "")}`}><Phone size={18} aria-hidden />{t(lang, "call")}</a>
           : <span className="btn" aria-disabled="true"><Phone size={18} aria-hidden />{t(lang, "call")}</span>}
-        <button type="button" className="btn btn-soft tap" onClick={onDirections}><Navigation size={18} aria-hidden />{t(lang, "directions")}</button>
       </div>
-      <RideButtons origin={origin} dest={{ lat: r.lat, lon: r.lon, name: r.name }} lang={lang} />
+      <RideButtons origin={origin} dest={{ lat: r.lat, lon: r.lon, name: r.name }} lang={lang} onDirections={onDirections} />
       {!phone && <p className="tiny" style={{ marginTop: 8, textAlign: "center" }}>{t(lang, "noPhone")}</p>}
 
       <button type="button" className="door-card tap" onClick={onDoor}>
