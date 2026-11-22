@@ -38,7 +38,7 @@ const TAG_KEY: Record<string, "fastest" | "mostTrusted" | "bestValue" | "mostCom
 
 export function Chips({ r, lang }: { r: ResultDto; lang: Lang }) {
   return (
-    <div className="chips">
+    <div className="chips" data-read="list">
       {r.tags.filter((x) => TAG_KEY[x]).map((x) => <span key={x} className="chip chip-accent">{t(lang, TAG_KEY[x])}</span>)}
       {r.registry?.tier === "verified" && <span className="chip chip-info"><ShieldCheck size={14} aria-hidden />{t(lang, "registryListed")}</span>}
       {r.registry?.tier === "possible" && <span className="chip chip-warn"><AlertTriangle size={14} aria-hidden />{t(lang, "registryPossible")}</span>}
@@ -67,44 +67,44 @@ export function Slip({ r, scale, lang, services, onWhy, onSpeak }: {
   return (
     <article className="card" aria-labelledby={`n-${r.id}`}>
       <Chips r={r} lang={lang} />
-      <p className="slip-kicker">{t(lang, "bestFor", { service: svc })}</p>
-      <h2 className="slip-name" id={`n-${r.id}`} lang="en">{r.name}</h2>
+      <p className="slip-kicker" data-read>{t(lang, "bestFor", { service: svc })}</p>
+      <h2 className="slip-name" id={`n-${r.id}`} lang="en" data-read>{r.name}</h2>
       {(r.type || where) && <p className="slip-sub">{r.type && <>{typeLabel(r.type, lang)}{where && " · "}</>}<span lang="en">{where}</span></p>}
 
-      <div className="stats">
+      <div className="stats" data-read data-read-text={`${r.etaMinutes} ${t(lang, "min")}, ${r.distanceKm} ${t(lang, "km")}`}>
         <div className="stat"><div className="stat-num">{r.etaMinutes}<sup>{t(lang, "min")}</sup></div></div>
         <div className="stat"><div className="stat-num">{r.distanceKm}<sup>{t(lang, "km")}</sup></div></div>
       </div>
       <RoadBar r={r} scale={scale} lang={lang} />
 
       <div className="tiles-2">
-        <div className="mini">
+        <div className="mini" data-read data-read-text={`${t(lang, "howSure")}: ${t(lang, SURE_KEY[level])}`}>
           <div className="mini-k">{t(lang, "howSure")}</div>
           <div className="mini-v">{t(lang, SURE_KEY[level])}</div>
           <div className="meter" data-level={level} aria-hidden>{[1, 2, 3].map((i) => <i key={i} data-on={i <= on} />)}</div>
         </div>
-        <div className="mini">
+        <div className="mini" data-read data-read-text={`${t(lang, "likelyRange")}: ${r.etaLow}, ${r.etaHigh} ${t(lang, "min")}`}>
           <div className="mini-k">{t(lang, "likelyRange")}</div>
           <div className="mini-v">{r.etaLow}–{r.etaHigh} <span className="small">{t(lang, "min")}</span></div>
         </div>
       </div>
-      {!r.solid && <p className="callout"><AlertTriangle size={18} aria-hidden /><span>{t(lang, "weakNote")}</span></p>}
+      {!r.solid && <p className="callout" data-read><AlertTriangle size={18} aria-hidden /><span>{t(lang, "weakNote")}</span></p>}
 
       <div className="btn-row actions">
         {phone
           ? <a className="btn btn-dark tap" href={`tel:${phone.replace(/[^\d+]/g, "")}`}><Phone size={18} aria-hidden />{t(lang, "call")}</a>
           : <span className="btn" aria-disabled="true"><Phone size={18} aria-hidden />{t(lang, "call")}</span>}
         <a className="btn tap" href={dirUrl} target="_blank" rel="noopener noreferrer"><Navigation size={18} aria-hidden />{t(lang, "directions")}<ArrowUpRight size={16} className="arrow" aria-hidden /></a>
-        {!phone && <p className="small wide">{t(lang, "noPhone")}</p>}
+        {!phone && <p className="small wide" data-read>{t(lang, "noPhone")}</p>}
       </div>
 
       {(quote || (ev?.notes.length ?? 0) > 0) && (
         <div className="block">
-          <h3 className="block-h">{t(lang, "evidenceFrom")} · {svcLabel(ev.service, lang)}</h3>
+          <h3 className="block-h" data-read>{t(lang, "evidenceFrom")} · {svcLabel(ev.service, lang)}</h3>
           {/* the quote is the facility's own text, cited verbatim, so it stays in the language it was written in */}
           {quote
-            ? <blockquote className="quote" lang="en">“{quote.text.length > 300 ? quote.text.slice(0, 297) + "…" : quote.text}”</blockquote>
-            : <blockquote className="quote" lang="en">{ev.notes.slice(0, 2).join(" ")}</blockquote>}
+            ? <blockquote className="quote" lang="en" data-read>“{quote.text.length > 300 ? quote.text.slice(0, 297) + "…" : quote.text}”</blockquote>
+            : <blockquote className="quote" lang="en" data-read>{ev.notes.slice(0, 2).join(" ")}</blockquote>}
           <p className="src">
             <span>{levelLabel(ev.level, lang)}{quote ? ` · ${fieldLabel(quote.field, lang)}` : ""}</span>
             {src && <>
@@ -116,14 +116,14 @@ export function Slip({ r, scale, lang, services, onWhy, onSpeak }: {
         </div>
       )}
 
-      {r.warnings.map((w) => <p key={w.text} className="callout"><AlertTriangle size={18} aria-hidden /><span>{say(w, lang)}</span></p>)}
+      {r.warnings.map((w) => <p key={w.text} className="callout" data-read><AlertTriangle size={18} aria-hidden /><span>{say(w, lang)}</span></p>)}
 
       <div className="block">
-        <h3 className="block-h">{t(lang, "showAtDoor")}</h3>
+        <h3 className="block-h" data-read>{t(lang, "showAtDoor")}</h3>
         <div className="timeline">
-          <div className="tl-item"><span className="tl-dot"><MessageCircle size={12} aria-hidden /></span><div className="tl-k">{t(lang, "say")}</div><div className="tl-v">{t(lang, "sayLine", { service: svc })}</div></div>
-          <div className="tl-item"><span className="tl-dot"><HelpCircle size={12} aria-hidden /></span><div className="tl-k">{t(lang, "ask")}</div><div className="tl-v">{t(lang, "askLine", { service: svc })}</div></div>
-          <div className="tl-item"><span className="tl-dot"><Briefcase size={12} aria-hidden /></span><div className="tl-k">{t(lang, "carry")}</div><div className="tl-v"><ul>{t(lang, "carryItems").split("|").map((x) => <li key={x}>{x}</li>)}</ul></div></div>
+          <div className="tl-item" data-read data-read-text={`${t(lang, "say")}: ${t(lang, "sayLine", { service: svc })}`}><span className="tl-dot"><MessageCircle size={12} aria-hidden /></span><div className="tl-k">{t(lang, "say")}</div><div className="tl-v">{t(lang, "sayLine", { service: svc })}</div></div>
+          <div className="tl-item" data-read data-read-text={`${t(lang, "ask")}: ${t(lang, "askLine", { service: svc })}`}><span className="tl-dot"><HelpCircle size={12} aria-hidden /></span><div className="tl-k">{t(lang, "ask")}</div><div className="tl-v">{t(lang, "askLine", { service: svc })}</div></div>
+          <div className="tl-item" data-read data-read-text={`${t(lang, "carry")}: ${t(lang, "carryItems").split("|").join(", ")}`}><span className="tl-dot"><Briefcase size={12} aria-hidden /></span><div className="tl-k">{t(lang, "carry")}</div><div className="tl-v"><ul>{t(lang, "carryItems").split("|").map((x) => <li key={x}>{x}</li>)}</ul></div></div>
         </div>
       </div>
 

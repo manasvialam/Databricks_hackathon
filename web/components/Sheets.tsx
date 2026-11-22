@@ -1,6 +1,6 @@
 "use client";
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Check, Minus, Phone, Plus, X } from "lucide-react";
+import { Check, Minus, Phone, Plus, Volume2, X } from "lucide-react";
 import type { ResultDto } from "@/lib/recommend";
 import type { RedFlagResult } from "@/lib/triage/redflags";
 import type { Contribution, Preferences } from "@/lib/types";
@@ -9,7 +9,7 @@ import { emergencyText, LANGS, say, t, termText, type Lang, type Msg } from "@/l
 export type CardAnswer = "yes" | "no" | "unknown";
 
 /** iOS-style bottom sheet: springs up, closes with a slide, and can be dragged down by its grabber. */
-function Sheet({ title, onClose, lang, children }: { title: string; onClose: () => void; lang: Lang; children: React.ReactNode }) {
+function Sheet({ title, onClose, lang, onListen, children }: { title: string; onClose: () => void; lang: Lang; onListen?: () => void; children: React.ReactNode }) {
   const ref = useRef<HTMLDivElement>(null);
   const [closing, setClosing] = useState(false);
   const drag = useRef<{ y: number; dy: number; t: number } | null>(null);
@@ -58,11 +58,12 @@ function Sheet({ title, onClose, lang, children }: { title: string; onClose: () 
   return (
     <div className="scrim" data-closing={closing} onClick={close}>
       <div className="sheet" data-closing={closing} role="dialog" aria-modal="true" aria-label={title} tabIndex={-1} ref={ref} onClick={(e) => e.stopPropagation()}>
-        <button type="button" className="grabber" aria-label={t(lang, "close")} onClick={close}
+        <button type="button" className="grabber" data-noread aria-label={t(lang, "close")} onClick={close}
           onPointerDown={onDown} onPointerMove={onMove} onPointerUp={onUp} onPointerCancel={onUp} />
         <div className="sheet-head">
           <h2 className="title">{title}</h2>
-          <button type="button" className="close tap" onClick={close} aria-label={t(lang, "close")}><X size={16} strokeWidth={2.5} aria-hidden /></button>
+          {onListen && <button type="button" className="close tap" data-noread onClick={onListen} aria-label={t(lang, "listen")}><Volume2 size={16} strokeWidth={2.5} aria-hidden /></button>}
+          <button type="button" className="close tap" data-noread onClick={close} aria-label={t(lang, "close")}><X size={16} strokeWidth={2.5} aria-hidden /></button>
         </div>
         {children}
       </div>
@@ -75,10 +76,10 @@ function Term({ c, lang }: { c: Contribution; lang: Lang }) {
   return <span>{label}{detail ? `. ${detail}` : ""}</span>;
 }
 
-export function WhySheet({ r, lang, onClose, trafficNote }: { r: ResultDto; lang: Lang; onClose: () => void; trafficNote: Msg }) {
+export function WhySheet({ r, lang, onClose, trafficNote, onListen }: { r: ResultDto; lang: Lang; onClose: () => void; trafficNote: Msg; onListen?: () => void }) {
   const pct = Math.round(r.pBest * 100);
   return (
-    <Sheet title={t(lang, "why")} onClose={onClose} lang={lang}>
+    <Sheet title={t(lang, "why")} onClose={onClose} lang={lang} onListen={onListen}>
       <p className="muted">{t(lang, "whyIntro")}</p>
       <div style={{ marginTop: 14 }}>
         <div className="big-pct">{pct}<small>%</small></div>
@@ -123,13 +124,13 @@ const SLIDERS: { k: keyof Preferences; label: "prefSpeed" | "prefTrust" | "prefC
   { k: "speed", label: "prefSpeed" }, { k: "trust", label: "prefTrust" }, { k: "cost", label: "prefCost" }, { k: "comfort", label: "prefComfort" },
 ];
 
-export function PrefSheet({ lang, prefs, card, onApply, onClose }: {
-  lang: Lang; prefs: Preferences; card: CardAnswer; onApply: (p: Preferences, c: CardAnswer) => void; onClose: () => void;
+export function PrefSheet({ lang, prefs, card, onApply, onClose, onListen }: {
+  lang: Lang; prefs: Preferences; card: CardAnswer; onApply: (p: Preferences, c: CardAnswer) => void; onClose: () => void; onListen?: () => void;
 }) {
   const [p, setP] = useState(prefs);
   const [c, setC] = useState<CardAnswer>(card);
   return (
-    <Sheet title={t(lang, "prefs")} onClose={onClose} lang={lang}>
+    <Sheet title={t(lang, "prefs")} onClose={onClose} lang={lang} onListen={onListen}>
       <div className="field" style={{ marginTop: 4 }}>
         <span className="field-label" id="card-q">{t(lang, "card")}</span>
         <Segmented labelledBy="card-q" value={c} onChange={setC}
@@ -147,9 +148,9 @@ export function PrefSheet({ lang, prefs, card, onApply, onClose }: {
   );
 }
 
-export function LangSheet({ lang, onPick, onClose }: { lang: Lang; onPick: (l: Lang) => void; onClose: () => void }) {
+export function LangSheet({ lang, onPick, onClose, onListen }: { lang: Lang; onPick: (l: Lang) => void; onClose: () => void; onListen?: () => void }) {
   return (
-    <Sheet title={t(lang, "language")} onClose={onClose} lang={lang}>
+    <Sheet title={t(lang, "language")} onClose={onClose} lang={lang} onListen={onListen}>
       <div>
         {LANGS.map((l) => (
           <button key={l.id} type="button" className="check-row tap" lang={l.id} aria-pressed={l.id === lang} onClick={() => onPick(l.id)}>
@@ -167,9 +168,9 @@ export function EmergencyCard({ gate, lang, online }: { gate: RedFlagResult; lan
   const helpline = gate.numbers.find((n) => n.number === "14416");
   return (
     <section className="emerg" role="alert" aria-labelledby="em-h">
-      <h1 id="em-h">{t(lang, "emergencyTitle")}</h1>
-      <p>{t(lang, "emergencyNow")}</p>
-      <div className="emerg-call">
+      <h1 id="em-h" data-read>{t(lang, "emergencyTitle")}</h1>
+      <p data-read>{t(lang, "emergencyNow")}</p>
+      <div className="emerg-call" data-read="list">
         <a href="tel:108" className="tap"><span className="ring"><Phone size={22} aria-hidden /></span><div>{t(lang, "callNow", { n: 108 })}<span>{t(lang, "ambulance")}</span></div></a>
         <a href="tel:112" className="tap"><span className="ring"><Phone size={22} aria-hidden /></span><div>{t(lang, "callNow", { n: 112 })}<span>{t(lang, "emergencyAll")}</span></div></a>
         {helpline && <a href="tel:14416" className="tap"><span className="ring"><Phone size={22} aria-hidden /></span><div>{t(lang, "callNow", { n: 14416 })}<span>{t(lang, "teleManas")}</span></div></a>}
@@ -180,12 +181,12 @@ export function EmergencyCard({ gate, lang, online }: { gate: RedFlagResult; lan
         const text = tr ?? { label: c.label, now: c.now, wait: c.whileWaiting };
         return (
           <div key={c.id} lang={tr ? lang : "en"} className="emerg-cat">
-            <p><b>{text.label}.</b> {text.now}</p>
-            {text.wait && <p className="wait"><span lang={lang}>{t(lang, "whileWaiting")}:</span> {text.wait}</p>}
+            <p data-read><b>{text.label}.</b> {text.now}</p>
+            {text.wait && <p className="wait" data-read><span lang={lang}>{t(lang, "whileWaiting")}:</span> {text.wait}</p>}
           </div>
         );
       })}
-      {!online && <p style={{ fontSize: 14 }}>{t(lang, "emergencyOffline")}</p>}
+      {!online && <p style={{ fontSize: 14 }} data-read>{t(lang, "emergencyOffline")}</p>}
     </section>
   );
 }

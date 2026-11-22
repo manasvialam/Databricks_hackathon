@@ -1,6 +1,6 @@
 "use client";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { ArrowUp, ChevronRight, Globe, Info, LocateFixed, MapPin, Mic, Phone, Search, SlidersHorizontal, Square } from "lucide-react";
+import { ArrowUp, ChevronRight, Globe, Info, LocateFixed, MapPin, Mic, Pause, Phone, Play, Search, SkipBack, SkipForward, SlidersHorizontal, Square, Volume2, X } from "lucide-react";
 import { LANGS, hasKey, isLang, say, speechLang, svcPlain, t, type Lang } from "@/lib/i18n";
 import { checkRedFlags, type RedFlagResult } from "@/lib/triage/redflags";
 import { PERSONA_BY_ID } from "@/lib/preferences";
@@ -8,7 +8,8 @@ import type { Preferences, ServiceId, Urgency } from "@/lib/types";
 import type { RecommendResponse } from "@/lib/recommend";
 import type { NearbyService } from "@/lib/nearby";
 import { SERVICES } from "@/lib/services";
-import { canListen, listen, speak, stopSpeaking, type Listener } from "@/lib/client/speech";
+import { canListen, listen, stopSpeaking, type Listener } from "@/lib/client/speech";
+import { useReadAlong } from "@/lib/client/readalong";
 import { Slip, svcLabel } from "./Slip";
 import { EmergencyCard, LangSheet, PrefSheet, WhySheet, type CardAnswer } from "./Sheets";
 
@@ -28,6 +29,8 @@ const safeSet = (k: string, v: string) => { try { localStorage.setItem(k, v); } 
 
 export function App() {
   const [lang, setLang] = useState<Lang>("en");
+  const ra = useReadAlong(lang);
+  const [slow, setSlow] = useState(false);
   const [loc, setLoc] = useState<Loc | null>(null);
   const [locBusy, setLocBusy] = useState(false);
   const [locMsg, setLocMsg] = useState<string | null>(null);
@@ -78,7 +81,7 @@ export function App() {
     return () => window.removeEventListener("scroll", on);
   }, []);
   const chooseLang = useCallback((l: Lang) => {
-    listener.current?.stop(); stopSpeaking(); setNotice(null);
+    listener.current?.stop(); stopSpeaking(); ra.stop(); setNotice(null);
     setLang(l); safeSet("lang", l);
   }, []);
 
@@ -135,7 +138,7 @@ export function App() {
   const run = useCallback(async (raw: string) => {
     const msg = raw.trim();
     if (!msg) return;
-    stopSpeaking();
+    stopSpeaking(); ra.stop();
     setSaid(msg); setText(""); setCaption(""); setCareNote(null); setErrMsg(null); setRec(null); setNotice(null);
     const g = checkRedFlags(msg);              // runs in the browser: works with no network
     setGate(g);
@@ -163,7 +166,7 @@ export function App() {
 
   const toggleMic = useCallback(() => {
     if (listening) { listener.current?.stop(); return; }
-    stopSpeaking();
+    stopSpeaking(); ra.stop();
     setCaption(""); setNotice(null);
     const l = listen(speechLang(lang), {
       interim: setCaption,
@@ -184,11 +187,28 @@ export function App() {
   const showIdle = view === "idle" && !gate;
 
   const readSlip = () => {
-    if (!picked) return;
-    const level = t(lang, picked.solid ? (picked.pService >= 0.75 ? "sureHigh" : picked.pService >= 0.55 ? "sureMid" : "sureLow") : "sureLow");
-    const spoke = speak(t(lang, "readSlip", { name: picked.name, min: picked.etaMinutes, km: picked.distanceKm, sure: `${t(lang, "howSure")}: ${level}.` }), hasKey(lang, "readSlip") ? speechLang(lang) : "en-IN");
-    setNotice(spoke ? null : t(lang, "ttsUnavailable"));
+    const ok = ra.start((document.querySelector("main article.card") as ParentNode | null) ?? document);
+    setNotice(ok ? null : t(lang, "ttsUnavailable"));
   };
+  const readSheet = () => {
+    const ok = ra.start(document.querySelector('[role="dialog"]') ?? document);
+    setNotice(ok ? null : t(lang, ra.available ? "readingNothing" : "ttsUnavailable"));
+  };
+  const readPage = () => {
+    if (ra.state.status !== "idle") { ra.stop(); return; }
+    const ok = ra.start(document.querySelector('[role="dialog"]') ?? document.querySelector("main") ?? document);
+    setNotice(ok ? null : t(lang, ra.available ? "readingNothing" : "ttsUnavailable"));
+  };
+  // stop reading when the language or the chosen hospital changes; an emergency card is read out loud as soon as it appears
+  useEffect(() => { ra.stop(); }, [lang, sel, sheet]); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => { if (ra.state.skipped) setNotice(t(lang, "readingSkipped")); }, [ra.state.skipped]); // eslint-disable-line react-hooks/exhaustive-deps
+  const emergencyRead = useRef<RedFlagResult | null>(null);
+  useEffect(() => {
+    if (!gate || emergencyRead.current === gate) return;
+    emergencyRead.current = gate;
+    const id = setTimeout(() => { ra.start(document.querySelector(".emerg") ?? document); }, 350);
+    return () => clearTimeout(id);
+  }, [gate]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const pickPlace = (c: Candidate) => setLocation({ lat: c.lat, lon: c.lon, label: `${c.district}, ${c.state}` });
   const placeForm = (
@@ -199,14 +219,17 @@ export function App() {
   return (
     <div className="shell">
       <header className="topbar" data-scrolled={scrolled}>
-        <button type="button" className="icon-btn tap" aria-label={t(lang, "language")} onClick={() => setSheet("lang")}><Globe size={20} aria-hidden /></button>
+        <span className="tb-group">
+          <button type="button" className="icon-btn tap" aria-label={t(lang, "language")} onClick={() => setSheet("lang")}><Globe size={20} aria-hidden /></button>
+          {ra.available && <button type="button" className="icon-btn tap" aria-label={t(lang, "listen")} aria-pressed={ra.state.status !== "idle"} data-on={ra.state.status !== "idle"} onClick={readPage}><Volume2 size={20} aria-hidden /></button>}
+        </span>
         <span className="topbar-title" aria-hidden>{t(lang, "appTitle")}</span>
         <a className="sos tap" href="tel:108" aria-label={t(lang, "emergencyCall")}><span className="sos-dot"><Phone size={13} aria-hidden /></span>108</a>
       </header>
 
       <main className="col" id="main">
-        <h1 className="sr-only">{t(lang, "appTitle")}</h1>
-        <div className="stack enter" key={`${view}-${sel}-${gate ? 1 : 0}`}>
+        <h1 className="sr-only" data-noread>{t(lang, "appTitle")}</h1>
+        <div className="stack enter" key={gate ? `em-${sel}` : `${view}-${sel}`}>
           {said && <p className="said"><span className="said-k">{t(lang, "said")}</span>{said}</p>}
           {notice && <p className="callout callout-info" role="status" style={{ marginTop: 0 }}><Info size={18} aria-hidden /><span>{notice}</span></p>}
 
@@ -230,7 +253,7 @@ export function App() {
           {view === "pickcare" && (
             <>
               <div style={{ padding: "0 4px" }}>
-                <h2 className="title">{t(lang, "pickCare")}</h2>
+                <h2 className="title" data-read>{t(lang, "pickCare")}</h2>
                 {careNote && <p className="muted" style={{ marginTop: 6 }}>{careNote}</p>}
               </div>
               <div className="list">
@@ -253,12 +276,12 @@ export function App() {
             <>
               <div style={{ padding: "4px 4px 0" }}>
                 <p className="eyebrow">{t(lang, "appTitle")}</p>
-                <p className="hero-title">{t(lang, "headline")}. <span>{t(lang, "sub")}</span></p>
+                <p className="hero-title" data-read>{t(lang, "headline")}. <span>{t(lang, "sub")}</span></p>
               </div>
 
               {canMic && (
                 <div className="orb-wrap">
-                  <button type="button" className="orb tap" data-live={listening} aria-label={listening ? t(lang, "stop") : t(lang, "mic")} onClick={toggleMic}>
+                  <button type="button" className="orb tap" data-noread data-live={listening} aria-label={listening ? t(lang, "stop") : t(lang, "mic")} onClick={toggleMic}>
                     {listening ? <Square aria-hidden /> : <Mic aria-hidden />}
                   </button>
                   <p className="orb-label">{listening ? t(lang, "listening") : t(lang, "tapToSpeak")}<small>{t(lang, "orType")}</small></p>
@@ -280,13 +303,13 @@ export function App() {
                   <h2 className="section-label">{t(lang, "nearYou")}</h2>
                   <div className="tiles">
                     {nearby.slice(0, 6).map((s) => (
-                      <button key={s.id} type="button" className="tile tap" onClick={() => loc && fetchRec([s.id], s.urgent ? "urgent" : "routine", loc)}>
+                      <button key={s.id} type="button" className="tile tap" data-read data-read-text={`${svcLabel(s.id, lang)}${s.nearestKm != null ? `, ${Math.round(s.nearestKm)} ${t(lang, "km")}` : ""}`} onClick={() => loc && fetchRec([s.id], s.urgent ? "urgent" : "routine", loc)}>
                         <span className="tile-name">{svcLabel(s.id, lang)}</span>
                         <span className="tile-num">{s.nearestKm != null ? <>{Math.round(s.nearestKm)}<small>{t(lang, "km")}</small></> : "–"}</span>
                       </button>
                     ))}
                   </div>
-                  <p className="tiny" style={{ padding: "0 6px" }}>{t(lang, "nearYouNote")}</p>
+                  <p className="tiny" style={{ padding: "0 6px" }} data-read>{t(lang, "nearYouNote")}</p>
                 </>
               )}
               <p className="foot">{canMic ? `${t(lang, "voiceNote")} ` : `${t(lang, "voiceUnavailable")} `}{t(lang, "notAffiliated")}</p>
@@ -295,8 +318,8 @@ export function App() {
 
           {view === "result" && rec && picked && (
             <>
-              {rec.notes.length > 0 && <div className="notes">{rec.notes.map((n) => <p key={n.text}>{say(n, lang)}</p>)}</div>}
-              {rec.confidence === "several_similar" && <p className="callout callout-info" style={{ marginTop: 0 }}><Info size={18} aria-hidden /><span>{t(lang, "mixWarning")}</span></p>}
+              {rec.notes.length > 0 && <div className="notes">{rec.notes.map((n) => <p key={n.text} data-read>{say(n, lang)}</p>)}</div>}
+              {rec.confidence === "several_similar" && <p className="callout callout-info" style={{ marginTop: 0 }}><Info size={18} aria-hidden /><span data-read>{t(lang, "mixWarning")}</span></p>}
               <Slip r={picked} scale={scale} lang={lang} services={rec.services} onWhy={() => setSheet("why")} onSpeak={readSlip} />
               <button type="button" className="btn tap" style={{ background: "var(--surface)", boxShadow: "var(--shadow)" }} onClick={() => setSheet("prefs")}>
                 <SlidersHorizontal size={18} aria-hidden />{t(lang, "prefs")}
@@ -306,7 +329,7 @@ export function App() {
                   <h2 className="section-label">{t(lang, "otherOptions")}</h2>
                   <div className="list">
                     {rec.results.map((r, i) => i === sel ? null : (
-                      <button key={r.id} type="button" className="list-row" onClick={() => { setSel(i); window.scrollTo({ top: 0, behavior: "smooth" }); }}>
+                      <button key={r.id} type="button" className="list-row" data-read data-read-text={`${r.name}, ${r.etaMinutes} ${t(lang, "min")}, ${r.distanceKm} ${t(lang, "km")}`} onClick={() => { setSel(i); window.scrollTo({ top: 0, behavior: "smooth" }); }}>
                         <span className="row-title" lang="en">{r.name}</span>
                         <span className="row-meta">{r.etaMinutes} {t(lang, "min")}<small>{r.distanceKm} {t(lang, "km")}</small></span>
                         <ChevronRight size={16} className="chev" aria-hidden />
@@ -316,7 +339,7 @@ export function App() {
                   </div>
                 </>
               )}
-              {rec.coverage.context.length > 0 && <div className="notes">{rec.coverage.context.map((c) => <p key={c.text}>{say(c, lang)}</p>)}</div>}
+              {rec.coverage.context.length > 0 && <div className="notes">{rec.coverage.context.map((c) => <p key={c.text} data-read>{say(c, lang)}</p>)}</div>}
               <p className="foot">{t(lang, "estimate")} {t(lang, "notAffiliated")}</p>
             </>
           )}
@@ -326,6 +349,19 @@ export function App() {
         </div>
       </main>
 
+      {ra.state.status !== "idle" && (
+        <div className="ra-bar" role="group" aria-label={t(lang, "listen")}>
+          <span className="ra-count" aria-live="polite">{t(lang, "readingProgress", { n: ra.state.index + 1, m: ra.state.total })}</span>
+          <button type="button" className="ra-btn tap" onClick={ra.prev} aria-label={t(lang, "prevPart")}><SkipBack size={18} aria-hidden /></button>
+          {ra.state.status === "playing"
+            ? <button type="button" className="ra-btn ra-main tap" onClick={ra.pause} aria-label={t(lang, "pause")}><Pause size={20} aria-hidden /></button>
+            : <button type="button" className="ra-btn ra-main tap" onClick={ra.resume} aria-label={t(lang, "resume")}><Play size={20} aria-hidden /></button>}
+          <button type="button" className="ra-btn tap" onClick={ra.next} aria-label={t(lang, "nextPart")}><SkipForward size={18} aria-hidden /></button>
+          <button type="button" className="ra-speed tap" onClick={() => setSlow((v) => { ra.setRate(v ? 0.95 : 0.7); return !v; })} aria-pressed={slow}>{slow ? t(lang, "speedSlow") : t(lang, "speedNormal")}</button>
+          <button type="button" className="ra-btn tap" onClick={ra.stop} aria-label={t(lang, "stopReading")}><X size={18} aria-hidden /></button>
+        </div>
+      )}
+      
       <div className="composer">
         {(listening || caption) && <p className="caption" aria-live="polite">{listening && !caption ? t(lang, "listening") : caption}</p>}
         <form className="capsule" onSubmit={(e) => { e.preventDefault(); void run(text); }}>
@@ -339,10 +375,10 @@ export function App() {
         </form>
       </div>
 
-      {sheet === "lang" && <LangSheet lang={lang} onClose={() => setSheet(null)} onPick={(l) => { chooseLang(l); setSheet(null); }} />}
-      {sheet === "why" && picked && rec && <WhySheet r={picked} lang={lang} onClose={() => setSheet(null)} trafficNote={rec.traffic.note} />}
+      {sheet === "lang" && <LangSheet lang={lang} onClose={() => setSheet(null)} onListen={readSheet} onPick={(l) => { chooseLang(l); setSheet(null); }} />}
+      {sheet === "why" && picked && rec && <WhySheet r={picked} lang={lang} onClose={() => setSheet(null)} trafficNote={rec.traffic.note} onListen={readSheet} />}
       {sheet === "prefs" && (
-        <PrefSheet lang={lang} prefs={prefs} card={card} onClose={() => setSheet(null)}
+        <PrefSheet lang={lang} prefs={prefs} card={card} onClose={() => setSheet(null)} onListen={readSheet}
           onApply={(p, c) => { setPrefs(p); setCard(c); setPrefsTouched(true); setSheet(null); if (last.current && loc) void fetchRec(last.current.services, last.current.urgency, loc, p, c, true); }} />
       )}
     </div>

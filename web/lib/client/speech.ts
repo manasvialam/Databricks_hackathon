@@ -50,6 +50,9 @@ let voices: SpeechSynthesisVoice[] = [];
 const loadVoices = () => { if (canSpeak()) voices = window.speechSynthesis.getVoices(); };
 if (canSpeak()) { loadVoices(); window.speechSynthesis.addEventListener?.("voiceschanged", loadVoices); }
 
+/** True once the browser has listed its voices (Chrome lists them late, so an empty list means unknown, not none). */
+export const voicesReady = () => voices.length > 0;
+
 const tag = (s: string) => s.toLowerCase().replace("_", "-");   // older Android reports "ta_IN"
 
 /** The best installed voice for a language tag: the exact tag first ("ta-IN"), then the same language ("ta"). */

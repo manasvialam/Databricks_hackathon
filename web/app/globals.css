@@ -384,3 +384,20 @@ h1, h2, h3, p, blockquote { margin: 0; }
 :lang(te) :is(.hero-title, .slip-name, .emerg h1, .title), :lang(ml) :is(.hero-title, .slip-name, .emerg h1, .title) { line-height: 1.35; letter-spacing: 0; }
 :lang(ta) body, :lang(te) body, :lang(ml) body { line-height: 1.6; }
 :lang(hi) body { line-height: 1.55; }
+
+/* ---- read-along ---- */
+.tb-group { display: flex; gap: 8px; }
+.icon-btn[data-on="true"] { background: var(--ink); color: #fff; }
+[data-reading="true"] { background: #fff3c4; box-shadow: 0 0 0 6px #fff3c4; border-radius: 8px; transition: background .2s; }
+.emerg [data-reading="true"] { background: rgba(255,255,255,.22); box-shadow: 0 0 0 6px rgba(255,255,255,.22); }
+::highlight(readword) { background: #ffd54a; color: #000; }
+.ra-bar {
+  position: fixed; z-index: 30; left: 50%; transform: translateX(-50%); bottom: calc(env(safe-area-inset-bottom, 0px) + 92px);
+  width: min(calc(100% - 24px), 560px); display: flex; align-items: center; gap: 6px; padding: 8px 10px; border-radius: 999px;
+  background: rgba(255,255,255,.96); box-shadow: 0 8px 28px rgba(15,18,25,.18), 0 0 0 1px var(--hair);
+}
+.ra-count { flex: 1; white-space: nowrap; min-width: 0; overflow: hidden; text-overflow: ellipsis; font-size: 14px; color: var(--ink-2); padding-left: 8px; font-variant-numeric: tabular-nums; }
+.ra-btn, .ra-speed { min-width: 44px; min-height: 44px; border: 0; border-radius: 999px; background: var(--surface-2); color: var(--ink); display: inline-flex; align-items: center; justify-content: center; cursor: pointer; font: inherit; font-weight: 600; }
+.ra-main { background: var(--ink); color: #fff; }
+.ra-speed { padding: 0 14px; font-size: 14px; }
+.ra-speed[aria-pressed="true"] { background: var(--ink); color: #fff; }
