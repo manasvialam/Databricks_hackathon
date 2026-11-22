@@ -2,9 +2,9 @@ import type { Metadata, Viewport } from "next";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "Find the right hospital",
-  applicationName: "Setu",
-  appleWebApp: { capable: true, title: "Setu", statusBarStyle: "default" },
+  title: "Bharosa: find the right hospital",
+  applicationName: "Bharosa",
+  appleWebApp: { capable: true, title: "Bharosa", statusBarStyle: "default" },
   manifest: "/manifest.webmanifest",
   description: "Say what is wrong and where you are. We suggest nearby hospitals, quote the evidence for each, and say how sure we are.",
 };
