@@ -647,31 +647,34 @@ h1, h2, h3, p, blockquote { margin: 0; }
 .locbtn-v { white-space: nowrap; } .locbtn-v > span { max-width: 100%; }
 @media (max-width: 360px) { .tb-group { gap: 6px; } .topbar .icon-btn { width: 36px; height: 36px; } .sos { height: 36px; padding: 0 10px 0 9px; font-size: 14px; } .locbtn-v { font-size: 15px; } .topbar { gap: 6px; } }
 
-/* ---- the cat: a silhouette. One gradient-filled shape; only the eyes, whiskers and (when speaking) the mouth are drawn on it ---- */
-.cat { width: 100%; height: 100%; display: block; overflow: visible; }
-.hero-figure .cat { position: absolute; inset: 0; }
-.ct-shadow { fill: rgba(0, 0, 0, 0.22); }
-.ct-tail { fill: none; stroke-width: 11; stroke-linecap: round; }
-.ct-iris { fill: #f5921e; } .ct-pupil { fill: #102a43; }
-.ct-eye { transform-box: fill-box; transform-origin: center; transition: transform 0.4s var(--spring); }
-.ct-whisk { fill: none; stroke: #fff3e0; stroke-width: 2.2; stroke-linecap: round; opacity: 0.85; }
-.ct-mouth { transform-box: fill-box; transform-origin: 50% 0; opacity: 0; } .cat[data-mood="speaking"] .ct-mouth { opacity: 1; } .ct-mouth ellipse { fill: #102a43; }
-.ct-happy { opacity: 0; transition: opacity 0.2s ease; } .ct-happy path { fill: none; stroke: #f5921e; stroke-width: 5; stroke-linecap: round; }
-.ct-dots circle { fill: #ffe8cc; opacity: 0; } .ct-arc { fill: none; stroke: #ffe8cc; stroke-width: 4.5; stroke-linecap: round; opacity: 0; } .ct-sweat { fill: #9fd8ff; opacity: 0; }
-.cat [data-p="head"] { transform-box: view-box; transform-origin: 80px 92px; } .cat [data-p="tail"] { transform-box: view-box; transform-origin: 112px 126px; }
-.cat [data-p="earL"] { transform-box: view-box; transform-origin: 66px 42px; } .cat [data-p="earR"] { transform-box: view-box; transform-origin: 94px 42px; }
-.cat [data-p="eyes"], .cat [data-p="arc"] { transform-box: fill-box; transform-origin: center; }
-.ct-all { transform-box: view-box; transform-origin: 80px 140px; animation: ctbob 3.4s ease-in-out infinite; }
-@keyframes ctbob { 0%, 100% { transform: translateY(0) scaleY(1); } 50% { transform: translateY(-2px) scaleY(1.012); } }
-@keyframes cthop { 0%, 100% { transform: translateY(0); } 40% { transform: translateY(-14px); } }
-.cat[data-mood="happy"] .ct-all { animation: cthop 0.55s ease 2; }
-.cat[data-mood="listening"] .ct-arc { opacity: 0.5; } .cat[data-mood="listening"] .ct-eye { transform: scale(1.14); }
-.cat[data-mood="thinking"] .ct-dots circle { animation: ctthink 1.3s ease-in-out infinite; } .cat[data-mood="thinking"] .ct-eye-r { transform: scaleY(0.78); }
-.cat[data-mood="thinking"] .ct-dots circle:nth-child(2) { animation-delay: 0.18s; } .cat[data-mood="thinking"] .ct-dots circle:nth-child(3) { animation-delay: 0.36s; }
-.cat[data-mood="happy"] [data-p="eyes"] { opacity: 0; } .cat[data-mood="happy"] .ct-happy { opacity: 1; }
-.cat[data-mood="concerned"] .ct-eye-l { transform: rotate(-16deg) scaleY(0.85); } .cat[data-mood="concerned"] .ct-eye-r { transform: rotate(16deg) scaleY(0.85); } .cat[data-mood="concerned"] .ct-sweat { opacity: 1; }
-@keyframes ctthink { 0%, 100% { opacity: 0.2; transform: translateY(0); } 40% { opacity: 1; transform: translateY(-4px); } }
-@media (prefers-reduced-motion: reduce) { .ct-all, .ct-dots circle { animation: none !important; } }
+/* ---- the guide: a simple hospital. Cream building, orange cross badge, navy windows; moods change the glow, not the shape ---- */
+.hosp { width: 100%; height: 100%; display: block; overflow: visible; }
+.hero-figure .hosp { position: absolute; inset: 0; }
+.hs-shadow { fill: rgba(0, 0, 0, 0.22); }
+.hs-body { fill: #fff; } .hs-doorline { stroke: #fff6e8; stroke-width: 1.6; } .hs-wheel { fill: #102a43; } .hs-hub { fill: #cbd5e1; }
+.hs-amb { animation: hsamb 3.6s ease-in-out infinite; transform-box: fill-box; }
+@keyframes hsamb { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-1px); } }
+.hs-roof { fill: #e9b987; } .hs-win { fill: #102a43; opacity: 0.88; transition: fill 0.3s ease, opacity 0.3s ease; } .hs-door { fill: #102a43; }
+.hs-badge { fill: #f5921e; } .hs-plus { fill: #fff; } .hs-cross { transform-box: fill-box; transform-origin: center; }
+.hs-beacon rect { fill: #f5921e; opacity: 0.35; }
+.hs-arc { fill: none; stroke: #ffe8cc; stroke-width: 4.5; stroke-linecap: round; opacity: 0; } .hosp [data-p="arc"] { transform-box: fill-box; transform-origin: center; }
+.hs-dots circle { fill: #ffe8cc; opacity: 0; }
+.hs-all { transform-box: view-box; transform-origin: 85px 140px; animation: hsbob 3.6s ease-in-out infinite; }
+.hs-cross { animation: hsbreathe 3.6s ease-in-out infinite; }
+@keyframes hsbob { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-2px); } }
+@keyframes hsbreathe { 0%, 100% { filter: none; } 50% { filter: drop-shadow(0 0 5px rgba(245, 146, 30, 0.7)); } }
+@keyframes hshop { 0%, 100% { transform: translateY(0); } 40% { transform: translateY(-14px); } }
+@keyframes hslit { 0%, 100% { fill: #102a43; opacity: 0.88; } 40% { fill: #ffb454; opacity: 1; } }
+@keyframes hsthink { 0%, 100% { opacity: 0.2; transform: translateY(0); } 40% { opacity: 1; transform: translateY(-4px); } }
+@keyframes hsflash { 0%, 100% { opacity: 0.15; } 50% { opacity: 1; } }
+.hosp[data-mood="happy"] .hs-all { animation: hshop 0.55s ease 2; }
+.hosp[data-mood="listening"] .hs-win { fill: #ffb454; opacity: 1; } .hosp[data-mood="listening"] .hs-arc { opacity: 0.5; }
+.hosp[data-mood="thinking"] .hs-win { animation: hslit 1.4s ease-in-out infinite; } .hosp[data-mood="thinking"] .hs-dots circle { animation: hsthink 1.3s ease-in-out infinite; }
+.hosp[data-mood="thinking"] .hs-dots circle:nth-child(2) { animation-delay: 0.18s; } .hosp[data-mood="thinking"] .hs-dots circle:nth-child(3) { animation-delay: 0.36s; }
+.hosp[data-mood="speaking"] .hs-cross { animation: none; filter: drop-shadow(0 0 7px rgba(245, 146, 30, 0.85)); }
+.hosp[data-mood="happy"] .hs-cross { filter: drop-shadow(0 0 8px rgba(245, 146, 30, 0.9)); animation: none; }
+.hosp[data-mood="concerned"] .hs-badge { fill: #e5484d; } .hosp[data-mood="concerned"] .hs-beacon rect { animation: hsflash 0.9s ease-in-out infinite; } .hosp[data-mood="concerned"] .hs-cross { animation: none; }
+@media (prefers-reduced-motion: reduce) { .hs-all, .hs-cross, .hs-win, .hs-dots circle, .hs-beacon rect, .hs-amb { animation: none !important; } }
 
 /* ---- one palette everywhere: orange is the action, navy is the frame ---- */
 .btn-primary { background: var(--accent); color: var(--ink); box-shadow: 0 12px 22px -12px rgba(245, 146, 30, 0.85); }
