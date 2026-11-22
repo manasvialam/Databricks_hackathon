@@ -1,7 +1,7 @@
 "use client";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { speechLang, t, type Lang } from "@/lib/i18n";
-import { canSpeak, voiceFor, voicesReady } from "./speech";
+import { canSpeak, speechRate, voiceFor, voicesReady } from "./speech";
 
 /**
  * Read-along: speaks the parts of the screen marked data-read, one after another, in the language each part is written in,
@@ -111,7 +111,7 @@ export class ReadAlong {
   private status: RAState["status"] = "idle";
   private skipped = false;
   private token = 0;
-  rate = 0.95;
+  rate = 1;          // 1 = normal; the slow button sets a lower value
   constructor(private ui: () => Lang, private on: (s: RAState) => void) {}
 
   private emit() { this.on({ status: this.status, index: this.i, total: this.segs.length, skipped: this.skipped }); }
@@ -145,7 +145,7 @@ export class ReadAlong {
     if (!voice && voicesReady()) { this.skipped = true; this.emit(); return this.speakAt(i + 1); }   // no voice for this language: skip, never garble
     this.mark(seg.el); this.emit();
     const u = new SpeechSynthesisUtterance(seg.text);
-    u.lang = seg.lang; u.rate = this.rate; if (voice) u.voice = voice;
+    u.lang = seg.lang; u.rate = this.rate === 1 ? speechRate(voice) : this.rate; if (voice) u.voice = voice;
     u.onboundary = (e) => {
       if (my !== this.token || !seg.words) return;
       const h = highlights(); if (!h || typeof Highlight === "undefined") return;

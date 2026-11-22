@@ -1,4 +1,5 @@
 "use client";
+import { isNatural, rankVoices, tag } from "./voices";
 // Browser speech only. Recognition may send audio to the browser vendor, so the UI tells people before first use.
 
 type SR = {
@@ -53,15 +54,31 @@ if (canSpeak()) { loadVoices(); window.speechSynthesis.addEventListener?.("voice
 /** True once the browser has listed its voices (Chrome lists them late, so an empty list means unknown, not none). */
 export const voicesReady = () => voices.length > 0;
 
-const tag = (s: string) => s.toLowerCase().replace("_", "-");   // older Android reports "ta_IN"
+const pickKey = (lang: string) => `voice:${tag(lang).split("-")[0]}`;
+const getPick = (lang: string) => { try { return localStorage.getItem(pickKey(lang)); } catch { return null; } };
 
-/** The best installed voice for a language tag: the exact tag first ("ta-IN"), then the same language ("ta"). */
-export function voiceFor(lang: string): SpeechSynthesisVoice | null {
-  if (!canSpeak()) return null;
+/** Installed voices for a language, most natural first. */
+export function voiceChoices(lang: string): SpeechSynthesisVoice[] {
+  if (!canSpeak()) return [];
   if (!voices.length) loadVoices();
-  const want = tag(lang), base = want.split("-")[0];
-  return voices.find((v) => tag(v.lang) === want) ?? voices.find((v) => tag(v.lang).split("-")[0] === base) ?? null;
+  return rankVoices(voices, lang);
 }
+
+/** The chosen voice for a language (the person's own pick if it is still installed), otherwise the most natural one. */
+export function voiceFor(lang: string): SpeechSynthesisVoice | null {
+  const list = voiceChoices(lang);
+  const pick = getPick(lang);
+  return (pick && list.find((v) => v.voiceURI === pick || v.name === pick)) || list[0] || null;
+}
+
+/** Remember a voice for a language; null goes back to automatic. */
+export function chooseVoice(lang: string, v: SpeechSynthesisVoice | null) {
+  try { if (v) localStorage.setItem(pickKey(lang), v.voiceURI || v.name); else localStorage.removeItem(pickKey(lang)); } catch { /* storage unavailable */ }
+}
+export const chosenVoice = (lang: string) => { const p = getPick(lang); return p ? voiceChoices(lang).find((v) => v.voiceURI === p || v.name === p) ?? null : null; };
+
+/** Neural voices are smoother at their own speed; old voices sound less choppy a little slower. */
+export const speechRate = (v: SpeechSynthesisVoice | null) => (v && isNatural(v) ? 1 : 0.92);
 
 /**
  * Speak sentence by sentence so a tap can cancel quickly. Returns false, and says nothing, when the device lists its
@@ -76,7 +93,7 @@ export function speak(text: string, lang: string): boolean {
   const parts = text.match(/[^.!?।]+[.!?।]?/g)?.map((s) => s.trim()).filter(Boolean) ?? [text];
   for (const p of parts) {
     const u = new SpeechSynthesisUtterance(p);
-    u.lang = lang; u.rate = 0.95;
+    u.lang = lang; u.rate = speechRate(voice);
     if (voice) u.voice = voice;
     synth.speak(u);
   }

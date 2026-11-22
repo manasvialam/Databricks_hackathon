@@ -4,6 +4,8 @@ import { BadgeCheck, Check, Clock, ExternalLink, LocateFixed, MapPin, Minus, Nav
 import type { ResultDto } from "@/lib/recommend";
 import type { RedFlagResult } from "@/lib/triage/redflags";
 import type { Contribution, Preferences } from "@/lib/types";
+import { chooseVoice, chosenVoice, speak, voiceChoices } from "@/lib/client/speech";
+import { isNatural } from "@/lib/client/voices";
 import { emergencyText, LANGS, say, svcLabel, t, termText, type Lang, type Msg } from "@/lib/i18n";
 import type { NearbyHospital } from "@/lib/nearby";
 import { placeLine } from "./Slip";
@@ -170,6 +172,10 @@ export function PrefSheet({ lang, prefs, card, onApply, onClose, onListen }: {
 }
 
 export function LangSheet({ lang, onPick, onClose, onListen }: { lang: Lang; onPick: (l: Lang) => void; onClose: () => void; onListen?: () => void }) {
+  const [, redraw] = useState(0);
+  const code = LANGS.find((l) => l.id === lang)!.speech;
+  const choices = voiceChoices(code).slice(0, 6), picked = chosenVoice(code), auto = choices[0];
+  const hear = () => window.setTimeout(() => speak(t(lang, "voiceSample"), code), 50);
   return (
     <Sheet title={t(lang, "language")} onClose={onClose} lang={lang} onListen={onListen}>
       <div>
@@ -180,6 +186,22 @@ export function LangSheet({ lang, onPick, onClose, onListen }: { lang: Lang; onP
           </button>
         ))}
       </div>
+      {choices.length > 0 && (
+        <div className="block" style={{ marginTop: 18 }}>
+          <h3 className="block-h">{t(lang, "voiceLabel")}</h3>
+          <button type="button" className="check-row tap" aria-pressed={!picked} onClick={() => { chooseVoice(code, null); redraw((n) => n + 1); hear(); }}>
+            <span>{t(lang, "voiceAuto")}<small lang="en">{auto.name.replace(/^Microsoft /, "")}</small></span>
+            {!picked && <Check size={20} strokeWidth={2.5} aria-hidden />}
+          </button>
+          {choices.map((v) => (
+            <button key={v.voiceURI || v.name} type="button" className="check-row tap" aria-pressed={picked?.name === v.name} onClick={() => { chooseVoice(code, v); redraw((n) => n + 1); hear(); }}>
+              <span lang="en">{v.name.replace(/^Microsoft /, "")}<small>{isNatural(v) ? t(lang, "voiceNatural") : t(lang, "voiceBasic")}</small></span>
+              {picked?.name === v.name && <Check size={20} strokeWidth={2.5} aria-hidden />}
+            </button>
+          ))}
+          {!choices.some(isNatural) && <p className="small" style={{ padding: "8px 4px 0" }}>{t(lang, "voiceTip")}</p>}
+        </div>
+      )}
     </Sheet>
   );
 }

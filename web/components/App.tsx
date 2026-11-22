@@ -510,7 +510,7 @@ export function App() {
             ? <button type="button" className="ra-btn ra-main tap" onClick={ra.pause} aria-label={t(lang, "pause")}><Pause size={20} aria-hidden /></button>
             : <button type="button" className="ra-btn ra-main tap" onClick={ra.resume} aria-label={t(lang, "resume")}><Play size={20} aria-hidden /></button>}
           <button type="button" className="ra-btn tap" onClick={ra.next} aria-label={t(lang, "nextPart")}><SkipForward size={18} aria-hidden /></button>
-          <button type="button" className="ra-speed tap" onClick={() => setSlow((v) => { ra.setRate(v ? 0.95 : 0.7); return !v; })} aria-pressed={slow}>{slow ? t(lang, "speedSlow") : t(lang, "speedNormal")}</button>
+          <button type="button" className="ra-speed tap" onClick={() => setSlow((v) => { ra.setRate(v ? 1 : 0.7); return !v; })} aria-pressed={slow}>{slow ? t(lang, "speedSlow") : t(lang, "speedNormal")}</button>
           <button type="button" className="ra-btn tap" onClick={ra.stop} aria-label={t(lang, "stopReading")}><X size={18} aria-hidden /></button>
         </div>
       )}
