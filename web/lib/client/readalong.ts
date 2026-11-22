@@ -160,6 +160,7 @@ export class ReadAlong {
     };
     u.onend = () => { if (my === this.token && this.status === "playing") this.speakAt(i + 1); };
     u.onerror = (e) => { if (my === this.token && e.error !== "interrupted" && e.error !== "canceled" && this.status === "playing") this.speakAt(i + 1); };
+    keep.add(u); const free = () => keep.delete(u); u.addEventListener("end", free); u.addEventListener("error", free);
     window.speechSynthesis.speak(u);
   }
 
@@ -171,6 +172,8 @@ export class ReadAlong {
   private finish() { this.status = "idle"; this.mark(null); this.emit(); }
   cancel() { this.token++; if (canSpeak()) window.speechSynthesis.cancel(); this.mark(null); if (this.status !== "idle") { this.status = "idle"; this.emit(); } }
 }
+
+const keep = new Set<SpeechSynthesisUtterance>();   // hold a reference while speaking: Chrome may otherwise drop the utterance
 
 export function useReadAlong(lang: Lang) {
   const [state, setState] = useState<RAState>({ status: "idle", index: 0, total: 0, skipped: false });

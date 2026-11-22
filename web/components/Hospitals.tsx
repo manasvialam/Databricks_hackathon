@@ -63,7 +63,13 @@ export const estMinutes = (km: number) => Math.max(3, Math.round((km * 1.4) / 0.
 export function HospitalCard({ h, lang, need, guidance, origin, onWhy, onDirections }: { h: NearbyHospital; lang: Lang; need: string | null; guidance: boolean; origin: { lat: number; lon: number } | null; onWhy: () => void; onDirections: () => void }) {
   const [door, setDoor] = useState(false);
   const route = useRoute(origin, h);
-  const shortNeed = need ? (need.length > 60 ? need.slice(0, 57) + "…" : need) : null;
+  // what to say at the desk: the model's short summary of the problem, without "I'm having" or a closing full stop, so the sentence reads on its own
+  const clean = need ? need.trim().replace(/^(?:i(?:'m|\s+am)?\s+)?(?:having|facing|suffering\s+from|getting|feeling|have|feel)\s+/i, "").replace(/[\s.!?]+$/, "") : "";
+  const shortNeed = clean ? (clean.length > 60 ? clean.slice(0, 57) + "…" : clean) : null;
+  // how well this hospital fits what was described: the model's score where there is one, otherwise whether its listed specialties matched
+  const level: "high" | "mid" | "low" = h.fit != null ? (h.fit >= 0.7 ? "high" : h.fit >= 0.4 ? "mid" : "low") : h.matched.length ? "mid" : "low";
+  const on = level === "high" ? 3 : level === "mid" ? 2 : 1;
+  const SURE = { high: "sureHigh", mid: "sureMid", low: "sureLow" } as const;
   const tags = h.specialties.slice(0, 6), more = h.specialties.length - tags.length;
   const warning = h.warnings[0];
   const km = route?.available ? route.km : h.roadKm ?? h.km, min = route?.available ? route.minutes : h.minutes ?? estMinutes(h.km);
@@ -94,6 +100,12 @@ export function HospitalCard({ h, lang, need, guidance, origin, onWhy, onDirecti
           ? <div className="tags">{tags.map((id) => <span key={id} className="tag" data-hit={h.matched.includes(id)}>{specLabel(id, lang)}</span>)}{more > 0 && <span className="tag tag-more">{t(lang, "moreTags", { n: more })}</span>}</div>
           : <p className="small">{t(lang, "noServicesYet")}</p>}
       </div>
+      {guidance && (
+        <div className="sure" data-level={level}>
+          <span className="meter" aria-hidden>{[1, 2, 3].map((i) => <i key={i} data-on={i <= on} />)}</span>
+          <span className="sure-t"><small>{t(lang, "howSure")}</small><b>{t(lang, SURE[level])}</b></span>
+        </div>
+      )}
       {warning && <p className="callout"><Tx m={warning} lang={lang} /></p>}
 
       <div className="btn-row actions">

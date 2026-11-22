@@ -3,14 +3,14 @@ import { useEffect, useRef } from "react";
 
 /**
  * Live microphone loudness (0 to 1) for the listening animation. Speech recognition does not expose audio, so this opens the mic
- * separately with an analyser. If the browser refuses a second mic stream (some iOS versions do) it quietly reports nothing and the
+ * separately with an analyser. If the browser refuses a second mic stream (phones do: Android and iOS give the microphone to one user at a time, so the meter is desktop only) it quietly reports nothing and the
  * orb falls back to a gentle synthetic wave. Nothing is recorded or sent: samples are read and dropped.
  */
 export function useMicLevel(active: boolean): { current: number | null } {
   const level = useRef<number | null>(null);
   useEffect(() => {
     if (!active) { level.current = null; return; }
-    if (typeof navigator === "undefined" || !navigator.mediaDevices?.getUserMedia || /iPhone|iPad|iPod/.test(navigator.userAgent)) return;
+    if (typeof navigator === "undefined" || !navigator.mediaDevices?.getUserMedia || /Android|iPhone|iPad|iPod|Mobi/i.test(navigator.userAgent)) return;   // phones give the mic to one user at a time: a second stream makes speech recognition hear nothing
     let stop = false, raf = 0, stream: MediaStream | null = null, ctx: AudioContext | null = null;
     (async () => {
       try {

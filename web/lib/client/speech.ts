@@ -84,26 +84,42 @@ export const speechRate = (v: SpeechSynthesisVoice | null) => (v && isNatural(v)
  * Speak sentence by sentence so a tap can cancel quickly. Returns false, and says nothing, when the device lists its
  * voices and none speaks this language: an English voice reading Tamil script is silent or gibberish.
  */
+const alive = new Set<SpeechSynthesisUtterance>();   // Chrome drops an utterance nobody holds a reference to, and then never speaks or never ends
+let unlocked = false;
+/** iOS and Android only let speech start from a tap: say nothing, silently, on the first touch so later replies (after a network wait) may speak. */
+export function unlockSpeech() {
+  if (unlocked || !canSpeak()) return;
+  unlocked = true;
+  try { const u = new SpeechSynthesisUtterance(" "); u.volume = 0; window.speechSynthesis.speak(u); } catch { /* not supported */ }
+}
+if (typeof window !== "undefined") for (const ev of ["pointerdown", "touchend", "keydown"]) window.addEventListener(ev, unlockSpeech, { once: true, passive: true, capture: true });
+
 export function speak(text: string, lang: string, queue = false): boolean {   // queue: add after what is already being said instead of replacing it
   if (!canSpeak()) return false;
   const voice = voiceFor(lang);
   if (!voice && voices.length) return false;
   const synth = window.speechSynthesis;
+  const wait = !queue && (synth.speaking || synth.pending);
   if (!queue) synth.cancel();
   const mine = ++gen;                                            // cancelling fires "interrupted" on the old sentences; only the newest speech counts
   const parts = text.split(/(?<=[.!?।])\s+/).map((s) => s.trim()).filter(Boolean);      // split after sentence ends only, never inside 15.8
   if (!parts.length) parts.push(text);
   let left = parts.length;
   const done = () => { if (mine === gen && --left <= 0) setTalking(false); };
-  for (const p of parts) {
-    const u = new SpeechSynthesisUtterance(p);
-    u.lang = lang; u.rate = speechRate(voice);
-    if (voice) u.voice = voice;
-    u.onstart = () => { if (mine === gen) setTalking(true); };
-    u.onboundary = pulse;
-    u.onend = done; u.onerror = done;
-    synth.speak(u);
-  }
+  const say = () => {
+    if (mine !== gen) return;
+    for (const p of parts) {
+      const u = new SpeechSynthesisUtterance(p);
+      u.lang = lang; u.rate = speechRate(voice);
+      if (voice) u.voice = voice;
+      u.onstart = () => { if (mine === gen) setTalking(true); };
+      u.onboundary = pulse;
+      u.onend = () => { alive.delete(u); done(); }; u.onerror = () => { alive.delete(u); done(); };
+      alive.add(u);
+      synth.speak(u);
+    }
+  };
+  if (wait) setTimeout(say, 90); else say();       // Chrome on Android swallows a speak() made in the same moment as cancel()
   setTalking(true);
   return true;
 }

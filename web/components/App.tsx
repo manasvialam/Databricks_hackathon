@@ -339,7 +339,7 @@ export function App() {
       interim: setCaption,
       final: (v) => { void run(v, true); },
       error: (code) => {
-        if (code === "not-allowed" || code === "service-not-allowed" || code === "start-failed") setNotice(t(lang, "voiceUnavailable"));
+        if (code === "not-allowed" || code === "service-not-allowed" || code === "start-failed" || code === "audio-capture") setNotice(t(lang, "voiceUnavailable"));
         else if (code === "language-not-supported") setNotice(t(lang, "micLangUnavailable"));
         else if (code === "no-speech") setNotice(t(lang, "micNoSpeech"));
         else if (code === "network") setNotice(t(lang, online ? "error" : "offline"));
@@ -506,7 +506,7 @@ export function App() {
                 <p className="matched-for" data-read>{t(lang, "bestFor2", { what: needQuery!.sp.map((id) => specLabel(id, lang)).join(" · ") })}</p>
               )}
               {careNote && hMode === "need" && <p className="muted" style={{ padding: "0 6px" }}>{careNote}</p>}
-              <HospitalCard h={shownHospitals[sel]} lang={lang} origin={loc} need={hMode === "need" ? said : null} guidance={hMode === "need"} onWhy={() => setSheet("hwhy")}
+              <HospitalCard h={shownHospitals[sel]} lang={lang} origin={loc} need={hMode === "need" ? (need.current ?? said) : null} guidance={hMode === "need"} onWhy={() => setSheet("hwhy")}
                 onDirections={() => openMap({ name: shownHospitals[sel].name, lat: shownHospitals[sel].lat, lon: shownHospitals[sel].lon, fallbackKm: shownHospitals[sel].km })} />
               <div style={{ padding: "6px 6px 0" }}><h2 className="section-label" style={{ padding: 0 }}>{t(lang, "hospitalsNear")}</h2></div>
               <HospitalList hospitals={shownHospitals.filter((_, i) => i !== sel)} lang={lang} onOpen={openHospital} />
