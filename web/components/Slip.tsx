@@ -1,7 +1,7 @@
 "use client";
 import { Name } from "./Name";
 import { useEffect, useRef, useState } from "react";
-import { AlertTriangle, BadgeCheck, ChevronRight, Clock, Navigation, Phone, ShieldQuestion } from "lucide-react";
+import { AlertTriangle, BadgeCheck, ChevronRight, Clock, Hand, Navigation, Phone, ShieldQuestion } from "lucide-react";
 import type { ResultDto } from "@/lib/recommend";
 import { svcLabel, t, type Lang } from "@/lib/i18n";
 import { specLabel } from "@/lib/specialty";
@@ -79,19 +79,18 @@ export function MiniMap({ origin, dest, name, route, lang, onOpen }: { origin: {
   );
 }
 
-export function Slip({ r, lang, services, origin, onWhy, onDirections }: {
-  r: ResultDto; lang: Lang; services: { id: string }[]; origin: { lat: number; lon: number } | null; onWhy: () => void; onDirections: () => void;
+export function Slip({ r, lang, services, origin, onWhy, onDirections, onDoor }: {
+  r: ResultDto; lang: Lang; services: { id: string }[]; origin: { lat: number; lon: number } | null; onWhy: () => void; onDirections: () => void; onDoor: () => void;
 }) {
-  const [door, setDoor] = useState(false);
   const route = useRoute(origin, r);
   const level = sureLevel(r);
   const svc = svcLabel(services[0]?.id ?? "", lang);
   const phone = r.phones[0];
+  const on = level === "high" ? 3 : level === "mid" ? 2 : 1;
+  const where = placeLine(r);
   const ev = r.evidence.find((e) => e.snippets.length);
   const quote = ev?.snippets[0]?.text, src = ev?.sources[0]?.url;
   const domain = (u: string) => { try { return new URL(u).hostname.replace(/^www\./, ""); } catch { return ""; } };
-  const on = level === "high" ? 3 : level === "mid" ? 2 : 1;
-  const where = placeLine(r);
   const warning = r.warnings[0];
   const km = route?.available ? route.km : r.distanceKm, min = route?.available ? route.minutes : r.etaMinutes;
   const picks = r.tags.filter((x) => PICK_KEY[x]);
@@ -123,11 +122,12 @@ export function Slip({ r, lang, services, origin, onWhy, onDirections }: {
           <div className="tags">{r.specialties.slice(0, 4).map((id) => <span key={id} className="tag">{specLabel(id, lang)}</span>)}</div>
         </div>
       )}
+
       {quote && <p className="quote-line" lang="en">“{quote.length > 110 ? quote.slice(0, 107) + "…" : quote}”{src && <small> {domain(src)}</small>}</p>}
 
-      <div className="sure">
-        <span className="meter" data-level={level} aria-hidden>{[1, 2, 3].map((i) => <i key={i} data-on={i <= on} />)}</span>
-        <span>{t(lang, "howSure")}: <b>{t(lang, SURE_KEY[level])}</b></span>
+      <div className="sure" data-level={level}>
+        <span className="meter" aria-hidden>{[1, 2, 3].map((i) => <i key={i} data-on={i <= on} />)}</span>
+        <span className="sure-t"><small>{t(lang, "howSure")}</small><b>{t(lang, SURE_KEY[level])}</b></span>
       </div>
       {!r.solid && <p className="callout"><AlertTriangle size={17} aria-hidden /><span>{t(lang, "weakNote")}</span></p>}
       {r.solid && warning && <p className="callout"><AlertTriangle size={17} aria-hidden /><span><Tx m={warning} lang={lang} /></span></p>}
@@ -140,17 +140,14 @@ export function Slip({ r, lang, services, origin, onWhy, onDirections }: {
       </div>
       {!phone && <p className="tiny" style={{ marginTop: 8, textAlign: "center" }}>{t(lang, "noPhone")}</p>}
 
+      <button type="button" className="door-card tap" onClick={onDoor}>
+        <span className="door-ico"><Hand size={22} strokeWidth={2} aria-hidden /></span>
+        <span className="door-t">{t(lang, "showAtDoor")}<small>{t(lang, "sayLine", { service: svc })}</small></span>
+        <ChevronRight size={20} aria-hidden />
+      </button>
+
       <div className="more">
         <button type="button" className="more-row" onClick={onWhy}>{t(lang, "whyThis")}<ChevronRight size={18} aria-hidden /></button>
-        <button type="button" className="more-row" aria-expanded={door} aria-controls={`door-${r.id}`} onClick={() => setDoor((p) => !p)}>
-          {t(lang, "showAtDoor")}<ChevronRight size={18} aria-hidden />
-        </button>
-        <div className="more-body" id={`door-${r.id}`} data-open={door}>
-          <div>
-            <div className="doorrow"><b>{t(lang, "say")}</b><span>{t(lang, "sayLine", { service: svc })}</span></div>
-            <div className="doorrow"><b>{t(lang, "carry")}</b><span>{t(lang, "carryItems").split("|").join(" · ")}</span></div>
-          </div>
-        </div>
       </div>
     </article>
   );

@@ -15,7 +15,7 @@ import { useReadAlong } from "@/lib/client/readalong";
 import { useHistorySync, type NavEntry } from "@/lib/client/nav";
 import { ASSISTANT_PREFIX } from "@/lib/triage/history";
 import { Slip, svcLabel } from "./Slip";
-import { EmergencyCard, HospitalWhySheet, LangSheet, LocSheet, PrefSheet, WhySheet, type CardAnswer, type PlaceChoice } from "./Sheets";
+import { EmergencyCard, HospitalWhySheet, LangSheet, LocSheet, DoorSheet, PrefSheet, WhySheet, type CardAnswer, type PlaceChoice } from "./Sheets";
 import { HospitalCard, HospitalList } from "./Hospitals";
 import { Tx } from "./Tx";
 import { Name } from "./Name";
@@ -68,7 +68,7 @@ export function App() {
   const [voiceThinking, setVoiceThinking] = useState(false);   // a question asked by voice is being answered
   const viaVoice = useRef(false);                              // the current question was spoken, so the answer is spoken back
   const [caption, setCaption] = useState("");
-  const [sheet, setSheet] = useState<null | "why" | "prefs" | "lang" | "loc" | "hwhy" | "map">(null);
+  const [sheet, setSheet] = useState<null | "why" | "prefs" | "lang" | "loc" | "hwhy" | "map" | "door">(null);
   const [mapTarget, setMapTarget] = useState<MapTarget | null>(null);
   const [needHospitals, setNeedHospitals] = useState<NearbyHospital[]>([]);
   const [needBusy, setNeedBusy] = useState(false);
@@ -359,7 +359,7 @@ export function App() {
     (e: NavEntry) => {
       setSel(e.sel);
       setView(e.v === "result" && !recRef.current ? "idle" : (e.v as View));
-      setSheet(e.ov === "why" || e.ov === "prefs" || e.ov === "lang" || e.ov === "loc" || e.ov === "hwhy" || e.ov === "map" ? e.ov : null);
+      setSheet(e.ov === "why" || e.ov === "prefs" || e.ov === "lang" || e.ov === "loc" || e.ov === "hwhy" || e.ov === "map" || e.ov === "door" ? e.ov : null);
       if (!e.g) setGate(null);
     },
   );
@@ -591,7 +591,7 @@ export function App() {
           {view === "result" && rec && picked && (
             <>
               {rec.notes.length > 0 && <div className="notes">{rec.notes.map((n) => <p key={n.text}><Tx m={n} lang={lang} /></p>)}</div>}
-              <Slip r={picked} lang={lang} services={rec.services} origin={loc} onWhy={() => setSheet("why")} onDirections={() => openMap({ name: picked.name, lat: picked.lat, lon: picked.lon, fallbackKm: picked.distanceKm, fallbackMinutes: picked.etaMinutes })} />
+              <Slip r={picked} lang={lang} services={rec.services} origin={loc} onWhy={() => setSheet("why")} onDoor={() => setSheet("door")} onDirections={() => openMap({ name: picked.name, lat: picked.lat, lon: picked.lon, fallbackKm: picked.distanceKm, fallbackMinutes: picked.etaMinutes })} />
               {rec.results.length <= 1 && (
                 <button type="button" className="matters tap" onClick={() => setSheet("prefs")}>
                   <span className="quick-ico"><SlidersHorizontal size={20} strokeWidth={1.8} aria-hidden /></span>
@@ -662,6 +662,7 @@ export function App() {
       {sheet === "map" && mapTarget && loc && <MapSheet origin={loc} dest={mapTarget} lang={lang} onClose={() => setSheet(null)} onListen={readSheet} />}
       {sheet === "lang" && <LangSheet lang={lang} onClose={() => setSheet(null)} onListen={readSheet} onPick={(l) => { chooseLang(l); setSheet(null); }} />}
       {sheet === "why" && picked && rec && <WhySheet r={picked} lang={lang} onClose={() => setSheet(null)} trafficNote={rec.traffic.note} context={rec.coverage.context} onListen={readSheet} />}
+      {sheet === "door" && picked && rec && <DoorSheet r={picked} lang={lang} serviceId={rec.services[0]?.id ?? ""} onClose={() => setSheet(null)} onListen={readSheet} />}
       {sheet === "prefs" && (
         <PrefSheet lang={lang} prefs={prefs} card={card} onClose={() => setSheet(null)} onListen={readSheet}
           onApply={(p, c) => { setPrefs(p); setCard(c); setPrefsTouched(true); setSheet(null); if (last.current && loc) void fetchRec(last.current.services, last.current.urgency, loc, p, c, true); }} />
