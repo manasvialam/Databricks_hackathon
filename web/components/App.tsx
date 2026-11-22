@@ -19,11 +19,12 @@ import { EmergencyCard, HospitalWhySheet, LangSheet, LocSheet, PrefSheet, WhyShe
 import { HospitalCard, HospitalList } from "./Hospitals";
 import { Tx } from "./Tx";
 import { Name } from "./Name";
+import { MOCK_CURRENT_LOCATION, MOCK_LOCATION_ON } from "@/lib/places";
 import { MapSheet, type MapTarget } from "./MapSheet";
 import { Shade } from "./Shade";
 import { specLabel } from "@/lib/specialty";
 
-interface Loc { lat: number; lon: number; label: string | null }
+interface Loc { lat: number; lon: number; label: string | null; current?: boolean }
 interface Candidate { label: string; state: string; district: string; lat: number; lon: number }
 type View = "idle" | "loading" | "result" | "pickcare" | "needplace" | "error" | "chat";
 
@@ -97,6 +98,7 @@ export function App() {
     const phone = (navigator.languages ?? [navigator.language]).map((l) => l.toLowerCase().split("-")[0]).find(isLang);
     if (isLang(saved)) setLang(saved); else if (phone) setLang(phone);
     setCanMic(canListen());
+    if (MOCK_LOCATION_ON) setLoc((l) => l ?? MOCK_CURRENT_LOCATION);      // the current location is assumed until the person picks another place
     try { const r = JSON.parse(safeGet("recentLocs") ?? "[]"); if (Array.isArray(r)) setRecent(r.filter((x) => x && typeof x.label === "string" && Number.isFinite(x.lat) && Number.isFinite(x.lon)).slice(0, 3)); } catch { /* no recent places */ }
     setOnline(navigator.onLine);
     const on = () => setOnline(true), off = () => setOnline(false);
@@ -161,7 +163,7 @@ export function App() {
 
   const applyLocation = useCallback((l: Loc) => {
     setLoc(l); setLocMsg(null); setCandidates([]); setConfirm(null); setSheet((s) => (s === "loc" ? null : s));
-    if (l.label) setRecent((r) => { const n = [{ label: l.label as string, lat: l.lat, lon: l.lon }, ...r.filter((x) => x.label !== l.label)].slice(0, 3); safeSet("recentLocs", JSON.stringify(n)); return n; });
+    if (l.label && !l.current) setRecent((r) => { const n = [{ label: l.label as string, lat: l.lat, lon: l.lon }, ...r.filter((x) => x.label !== l.label)].slice(0, 3); safeSet("recentLocs", JSON.stringify(n)); return n; });
     if (pending.current) { const p = pending.current; pending.current = null; void fetchRec(p.services, p.urgency, l); }
   }, [fetchRec]);
 
@@ -186,6 +188,7 @@ export function App() {
   }, [lang]);
 
   const useDevice = useCallback(() => {
+    if (MOCK_LOCATION_ON) { applyLocation(MOCK_CURRENT_LOCATION); return; }       // the mock current location needs no question
     if (!navigator.geolocation) { setLocMsg(t(lang, "locDenied")); return; }
     setLocBusy(true);
     navigator.geolocation.getCurrentPosition(
@@ -198,7 +201,7 @@ export function App() {
       () => { setLocBusy(false); setLocMsg(t(lang, "locDenied")); },
       { enableHighAccuracy: false, timeout: 10000, maximumAge: 60000 },
     );
-  }, [lang, setLocation]);
+  }, [lang, setLocation, applyLocation]);
 
   const lookupPlace = useCallback(async (q: string) => {
     if (!q.trim()) return;
@@ -443,7 +446,7 @@ export function App() {
       <header className="topbar" data-scrolled={scrolled}>
         {(view !== "idle" || gate) && <button type="button" className="icon-btn tap" aria-label={t(lang, "back")} onClick={nav.back}><ChevronLeft size={22} aria-hidden /></button>}
         <button type="button" className="locbtn tap" onClick={() => setSheet("loc")} aria-label={t(lang, "locSheetTitle")}>
-          <span className="locbtn-k">{t(lang, "yourLocation")}</span>
+          <span className="locbtn-k">{t(lang, loc?.current ? "currentLocation" : "yourLocation")}</span>
           <span className="locbtn-v">{loc ? (loc.label ? <Name text={loc.label} lang={lang} /> : t(lang, "currentLocation")) : t(lang, "setLocationLabel")}<ChevronDown size={16} aria-hidden /></span>
         </button>
         <span className="tb-group">
