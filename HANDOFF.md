@@ -71,3 +71,17 @@ Done and tested: ranking engine, triage and emergency gate (English, Hindi, Hing
 - Commit or push only when the owner asks.
 - Never put tokens or secrets in chat or in the repo.
 - Medical safety: no definitive diagnosis, no dosing, the emergency gate may only escalate, and weak evidence is never presented as fact.
+
+## 10. Databricks deployment (done 2026-11-22)
+
+Workspace `https://dbc-43fc181d-51b6.cloud.databricks.com` (Free Edition), CLI login via `databricks auth login`.
+
+- **Data:** schema `workspace.facility_finder`; volume `raw` (parquet and snapshot); tables `fac_final`, `registry_match`, `facilities_serving`, `facility_claims`; function `find_facilities(service, lat, lon, max_km)`. SQL in `databricks/sql/`, runner `databricks/run_sql.py` (uses the CLI login; warehouse `cf80af6a5a0a8799`). Parquet is loaded from microsecond-timestamp copies (`scripts/out/*.us.parquet`) because Databricks rejects nanosecond timestamps.
+- **App:** `facility-finder` at https://facility-finder-7474656106086877.aws.databricksapps.com (sign-in with Databricks required). Source `web/` with `web/app.yaml`; model endpoint `databricks-meta-llama-3-3-70b-instruct` (resource `llm`, CAN_QUERY). `/api/health` reports tier 2 (snapshot data + model); the warehouse is not used by the app yet (tier 1 not implemented). Redeploy: from `web/`, `databricks sync . /Workspace/Users/<you>/facility-finder` then `databricks apps deploy facility-finder --source-code-path /Workspace/Users/<you>/facility-finder` (in Git Bash set `MSYS_NO_PATHCONV=1`).
+- **Genie space:** "Facility finder: ask the data" (id `01f1e61d9c39145d8b1fc73ec23c50fa`) over the three tables.
+- **Dashboard:** AI/BI dashboard `01f1e61f64731228af5ec8c5f8d6b71f` (built by `databricks/build_dashboard.py`); graph tables `graph_nodes`, `graph_edges` (`databricks/sql/03_graph.sql`); app page notebook `facility_graph` (workspace root) renders the relationship graph from the Delta tables. Vercel and an in-app graph are dropped by decision.
+- **Evaluation:** `databricks/evaluate.py` runs 12 golden recommend queries and 33 triage prompts against the deployed app and logs to MLflow experiment `/Users/akileshs@andrew.cmu.edu/facility-finder-eval`. Latest run: emergency recall 22/22, false alarms 0/11, service mapping 100%, 11/12 recommend queries pass (Lucknow C-section: top option is Inferred evidence with no quotable sentence). The app rate-limits to 40 requests per minute per IP; the script waits and retries on 429.
+- **Claim audit:** `claim_audit` and view `claim_audit_summary` (`databricks/sql/04_claim_audit.sql`, `ai_query` with Llama 3.3 70B on 150 claims per level). Share judged supported by the quote: Strong 72%, Moderate 55%, Weak 53%. A single quote barely separates Strong from Weak, so the levels rest on more than one snippet.
+- **Refresh job:** `facility-finder-refresh` (id 482506352998622), daily 03:00 IST, currently PAUSED; rebuilds the serving, claims and graph tables from `fac_final`. Ran once successfully.
+- **Not done:** warehouse-backed app (tier 1), embeddings for symptom matching, hand-labelling the registry sample.
+- **Lessons:** the model endpoint rejects `response_format: json_object` (400), so the app parses JSON from the reply text; the app log (`databricks apps logs facility-finder`) shows `llm extract failed` lines when the model call fails and the app silently falls back to rules.

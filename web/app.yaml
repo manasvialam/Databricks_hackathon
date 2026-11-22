@@ -1,0 +1,8 @@
+# Databricks App: runs the Next.js server. The platform injects DATABRICKS_HOST, DATABRICKS_CLIENT_ID,
+# DATABRICKS_CLIENT_SECRET and DATABRICKS_APP_PORT for the app's service principal.
+command: ["npm", "run", "start:app"]
+env:
+  - name: FM_ENDPOINT
+    value: databricks-meta-llama-3-3-70b-instruct
+  - name: TRAFFIC_PROVIDER
+    value: none

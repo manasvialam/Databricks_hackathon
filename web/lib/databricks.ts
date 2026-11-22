@@ -10,7 +10,7 @@ import { validateExtraction, type LlmExtraction, type LlmExtractor } from "./tri
  * Env: DATABRICKS_HOST, DATABRICKS_CLIENT_ID + DATABRICKS_CLIENT_SECRET (or DATABRICKS_TOKEN),
  *      FM_ENDPOINT (serving endpoint name; not assumed, check Serving in your workspace), DATABRICKS_WAREHOUSE_ID.
  */
-const host = () => process.env.DATABRICKS_HOST?.replace(/\/+$/, "");
+const host = () => { const h = process.env.DATABRICKS_HOST?.trim().replace(/\/+$/, ""); return h && !/^https?:\/\//.test(h) ? `https://${h}` : h; };
 
 export const dbxAuthConfigured = () => !!host() && (!!process.env.DATABRICKS_TOKEN || (!!process.env.DATABRICKS_CLIENT_ID && !!process.env.DATABRICKS_CLIENT_SECRET));
 export const llmConfigured = () => dbxAuthConfigured() && !!process.env.FM_ENDPOINT;
@@ -56,7 +56,7 @@ export async function chatJson(user: string, history: string[] = []): Promise<un
   const endpoint = process.env.FM_ENDPOINT;
   if (!endpoint) return null;
   const messages = [{ role: "system", content: SYSTEM }, ...history.slice(-4).map((h) => ({ role: "user", content: h.slice(0, 500) })), { role: "user", content: user.slice(0, 1000) }];
-  const res = await authed(`/serving-endpoints/${encodeURIComponent(endpoint)}/invocations`, { method: "POST", body: JSON.stringify({ messages, temperature: 0, max_tokens: 700, response_format: { type: "json_object" } }) });
+  const res = await authed(`/serving-endpoints/${encodeURIComponent(endpoint)}/invocations`, { method: "POST", body: JSON.stringify({ messages, temperature: 0, max_tokens: 700 }) });
   if (!res.ok) throw new Error(`serving endpoint ${res.status}`);
   const content = ((await res.json()) as { choices?: { message?: { content?: string } }[] }).choices?.[0]?.message?.content;
   if (!content) return null;
@@ -73,7 +73,7 @@ function llmConfiguredLazy(): LlmExtractor {
       try {
         const v = validateExtraction(await chatJson(text, history));
         if (v) return v;
-      } catch { /* retry once */ }
+      } catch (e) { console.error("llm extract failed:", e instanceof Error ? e.message : e); }
     }
     return null;
   };
