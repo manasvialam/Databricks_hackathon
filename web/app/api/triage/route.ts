@@ -14,7 +14,7 @@ export const POST = handle(async (req) => {
   const b = (await readJson(req)) as { message?: unknown; history?: unknown; lang?: unknown };
   const message = isString(b.message) ? b.message.trim() : "";
   if (!message || message.length > 1000) throw new HttpError(400, "Please type or say what you need (up to 1000 characters).");
-  const history = Array.isArray(b.history) ? b.history.filter(isString).slice(-6).map((s) => s.slice(0, 500)) : [];
+  const history = Array.isArray(b.history) ? b.history.filter(isString).slice(-8).map((s) => s.slice(0, 500)) : [];
 
   const lang = isLang(b.lang) ? b.lang : "en";
   const result = await triage(message, { history, llm: llmConfigured() ? llmExtract : null, lang });

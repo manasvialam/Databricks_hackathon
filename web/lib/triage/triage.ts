@@ -1,5 +1,6 @@
 import type { ServiceId, Urgency } from "../types";
 import { isServiceId } from "../services";
+import { ASSISTANT_PREFIX } from "./history";
 import { checkRedFlags, type RedFlagResult } from "./redflags";
 import { matchNeeds, maxUrgency, placeCandidates, type Condition } from "./mapping";
 import type { Lang } from "../i18n";
@@ -43,10 +44,13 @@ export function validateExtraction(x: unknown): LlmExtraction | null {
   return { symptoms: arr(o.symptoms).slice(0, 8), urgency: urg, services: arr(o.services).filter(isServiceId), possibleConditions: conds, followUps: arr(o.followUps).slice(0, 2), location: typeof o.location === "string" ? o.location.slice(0, 80) : null, summary: typeof o.summary === "string" ? o.summary.slice(0, 300) : undefined };
 }
 
+export { ASSISTANT_PREFIX };
+
 export async function triage(text: string, opts: { history?: string[]; llm?: LlmExtractor | null; lang?: Lang } = {}): Promise<TriageResult> {
   const history = opts.history ?? [];
-  // 1. the gate sees the new message and the recent conversation: a red flag mentioned earlier still counts
-  let emergency = checkRedFlags([...history.slice(-4), text].join(" . "));
+  // 1. the gate sees the new message and what the person said earlier (never the app's own questions, which may contain warning words): a red flag mentioned earlier still counts
+  const said = history.filter((h) => !h.startsWith(ASSISTANT_PREFIX));
+  let emergency = checkRedFlags([...said.slice(-4), text].join(" . "));
   const rules = matchNeeds(text);
   let llm: LlmExtraction | null = null;
   if (opts.llm && !emergency) {

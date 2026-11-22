@@ -1,6 +1,6 @@
 import "server-only";
 import { SERVICE_IDS } from "./services";
-import { validateExtraction, type LlmExtraction, type LlmExtractor } from "./triage/triage";
+import { ASSISTANT_PREFIX, validateExtraction, type LlmExtraction, type LlmExtractor } from "./triage/triage";
 import { LANGS, type Lang } from "./i18n";
 
 /**
@@ -53,6 +53,7 @@ Return ONLY a JSON object with these keys:
 - location: a place named in the message, or null. If it is written in an Indian script, give its usual English spelling.
 - summary: one plain sentence in English
 The message may be in English, Hindi, Tamil, Telugu or Malayalam, or a mix, in any script.
+Earlier turns of the conversation come first (the person's messages and your own follow-up questions). Read the last message in that context: if it only answers your question, combine both, and keep the same services unless the new information clearly changes which care is needed. summary and symptoms describe the whole conversation so far.
 Understand the meaning, not just keywords: "my father keeps getting breathless climbing stairs" and a word-for-word Hindi or Tamil version should give the same answer.
 If no listed service is a good fit (for example headache, fever, cough, a general check-up), return "services": [] instead of guessing.
 summary must restate the need in plain English so another reader can judge which hospital suits it.`;
@@ -87,7 +88,7 @@ export function parseJsonLoose(content: string | null, open: "{" | "[" = "{"): u
 }
 
 export async function chatJson(user: string, history: string[] = [], lang: Lang = "en"): Promise<unknown | null> {
-  const messages = [{ role: "system", content: extractionPrompt(lang) }, ...history.slice(-4).map((h) => ({ role: "user", content: h.slice(0, 500) })), { role: "user", content: user.slice(0, 1000) }];
+  const messages = [{ role: "system", content: extractionPrompt(lang) }, ...history.slice(-8).map((h) => (h.startsWith(ASSISTANT_PREFIX) ? { role: "assistant", content: h.slice(ASSISTANT_PREFIX.length, 500) } : { role: "user", content: h.slice(0, 500) })), { role: "user", content: user.slice(0, 1000) }];
   return parseJsonLoose(await chatComplete(messages, 700), "{");
 }
 

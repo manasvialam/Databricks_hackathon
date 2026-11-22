@@ -36,7 +36,7 @@ export interface NearbyHospital {
   warnings: Msg[];                                        // same cautions the recommendation card shows (merged records, approximate map position, ...)
 }
 
-const solidServices = (f: Facility): ServiceId[] =>
+export const solidServices = (f: Facility): ServiceId[] =>
   SERVICES.filter((s) => {
     const c = f.cl.find((x) => x.s === s.id);
     return !!c && c.l !== "Weak" && c.l !== "Contradicted" && c.ct.length === 0 && serviceLogOdds(f, s.id).p >= W.solid;

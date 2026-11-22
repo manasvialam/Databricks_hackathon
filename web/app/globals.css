@@ -461,3 +461,8 @@ h1, h2, h3, p, blockquote { margin: 0; }
 @keyframes breathe { 0%, 100% { transform: scale(1); } 50% { transform: scale(1.03); } }
 @keyframes halo-soft { 0%, 100% { opacity: 0.65; transform: scale(0.96); } 50% { opacity: 1; transform: scale(1.06); } }
 @keyframes ripple { from { transform: scale(1); opacity: 0.7; } to { transform: scale(1.6); opacity: 0; } }
+
+/* ---- the conversation, in order, above the hospital card ---- */
+.thread { display: grid; gap: 10px; }
+.asst { justify-self: start; max-width: 92%; color: var(--ink-2); font-size: 16px; line-height: 1.45; padding: 2px 6px; margin: 0; }
+.asst-note { color: var(--ink); font-weight: 600; }

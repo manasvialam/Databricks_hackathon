@@ -127,6 +127,8 @@ export const en = {
   describePh: "e.g. My father has had a high fever since yesterday",
   whyFitGeneric: "The language model read this hospital's own records and found they match what you described.",
   whyGeneralFit: "Ordered by how well each nearby hospital's own records match what you described, then by distance.",
+  stillFits: "This hospital still looks right for that.",
+  switchedCare: "What you added needs a different kind of care, so I looked again.",
   confirmQ: "Is this where you are?",
   confirmYes: "Yes, that is right",
   confirmNo: "No, change it",
