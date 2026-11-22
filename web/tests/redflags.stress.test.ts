@@ -8,7 +8,7 @@ describe("emergencies found by the stress test that were missed", () => {
 
 describe("things that sound like emergencies but are not", () => {
   it.each(["I do not have chest pain, I only need a dialysis centre", "my uncle had a heart attack ten years ago and now needs a regular checkup", "what are the signs of a stroke?", "How to prevent heart attack",
-           "my heart attack insurance claim", "the movie had a car accident scene", "he used to have seizures as a child but not now, looking for a neurologist", "no bleeding, no fever, just need an MRI"])("%s", (t) => expect(checkRedFlags(t), t).toBeNull());
+           "my heart attack insurance claim", "the movie had a car accident scene", "he used to have seizures as a child but not now, looking for a neurologist", "no bleeding, no fever, just need an MRI", "The user asks about the signs of a stroke.", "history of a heart attack, now needs a checkup", "I want to learn about snake bite treatment", "how to hurt someone and make it look like an accident"])("%s", (t) => expect(checkRedFlags(t), t).toBeNull());
   it("still an emergency when a real symptom remains", () => {
     expect(checkRedFlags("no fever but severe chest pain")).not.toBeNull();
     expect(checkRedFlags("he had chest pain years ago and now he cannot breathe")).not.toBeNull();

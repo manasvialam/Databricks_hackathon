@@ -656,7 +656,7 @@ export function App() {
       )}
 
       {sheet === "hwhy" && shownHospitals[sel] && <HospitalWhySheet h={shownHospitals[sel]} lang={lang} onClose={() => setSheet(null)} onListen={readSheet} />}
-      {sheet === "loc" && <LocSheet lang={lang} busy={locBusy} msg={locMsg} candidates={candidates} recent={recent} hint={view === "needplace" ? (askText ?? t(lang, "chooseWhereHint")) : null}
+      {sheet === "loc" && <LocSheet near={loc} lang={lang} busy={locBusy} msg={locMsg} candidates={candidates} recent={recent} hint={view === "needplace" ? (askText ?? t(lang, "chooseWhereHint")) : null}
         confirm={confirm} onYes={() => confirm && applyLocation(confirm.loc)} onNo={() => setConfirm(null)}
         onDevice={useDevice} onLookup={lookupPlace} onPick={pickPlace} onClose={() => { setConfirm(null); setSheet(null); }} onListen={readSheet} />}
       {sheet === "map" && mapTarget && loc && <MapSheet origin={loc} dest={mapTarget} lang={lang} onClose={() => setSheet(null)} onListen={readSheet} />}

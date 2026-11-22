@@ -81,6 +81,10 @@ export async function triage(text: string, opts: { history?: string[]; llm?: Llm
   // (The emergency gate above is independent of both and can only escalate.)
   if (llm) llm.services.forEach((s) => isServiceId(s) && push(s)); else rules?.services.forEach(push);
 
+  // NICU means newborn intensive care: drop it unless the conversation says the patient is a newborn or premature baby.
+  const NEWBORN = /newborn|new\s*born|neonat|prematur|preterm|nicu|\b\d+\s*(?:day|week)s?[- ]?old|नवजात|समय\s*से\s*पहले|पैदा\s*हुआ|பச்சிளம்|புதிதாக\s*பிறந்த|குறைப்\s*பிரசவ|నవజాత|పుట్టిన\s*బిడ్డ|ముందస్తు|നവജാത|മാസം\s*തികയാത്ത|ജനിച്ച\s*കുഞ്ഞ്/iu;
+  if (!emergency && services.includes("nicu") && !NEWBORN.test([...said, text].join(" . ") + " " + (llm?.summary ?? ""))) services.splice(services.indexOf("nicu"), 1);
+
   const conditions = llm?.possibleConditions.length ? llm.possibleConditions : rules?.conditions ?? [];
   const followUps = (llm?.followUps ?? []).slice(0, 2);
   const places = placeCandidates(text);

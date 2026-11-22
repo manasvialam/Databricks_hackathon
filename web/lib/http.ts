@@ -24,10 +24,11 @@ export class HttpError extends Error { constructor(public status: number, messag
 
 export const fail = (status: number, message: string, extra: Record<string, unknown> = {}) => Response.json({ error: message, ...extra }, { status, headers: { "Cache-Control": "no-store" } });
 
-export function handle(fn: (req: Request) => Promise<Response>) {
+/** `key` and `limit` give a route its own budget (typing suggestions fire many small requests and must not use up the one for searches). */
+export function handle(fn: (req: Request) => Promise<Response>, opts: { limit?: number; key?: string } = {}) {
   return async (req: Request) => {
     try {
-      if (rateLimited(clientIp(req))) return fail(429, "Too many requests. Please wait a moment and try again.");
+      if (rateLimited(opts.key ? `${clientIp(req)}|${opts.key}` : clientIp(req), opts.limit ?? 40)) return fail(429, "Too many requests. Please wait a moment and try again.");
       const res = await fn(req);
       if (!res.headers.has("Cache-Control")) res.headers.set("Cache-Control", "no-store");   // every answer depends on the request: never reuse one for another search
       return res;

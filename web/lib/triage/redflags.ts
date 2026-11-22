@@ -89,7 +89,7 @@ const NUMBERS = [{ name: "Emergency (all services)", number: "112" }, { name: "A
  * "no fever but severe chest pain" is still an emergency.
  */
 const NEGATED = /\b(?:do(?:es)?\s+not|don['’]?t|doesn['’]?t|did\s+not|didn['’]?t|no|without|never(?:\s+had)?|denies|denied)\s+(?:have\s+|had\s+|having\s+|feel\s+|any\s+|a\s+|an\s+)*(?:chest\s+pains?|pain\s+in\s+(?:the\s+)?chest|bleeding|seizures?|fits?|heart\s+attack|stroke|breathlessness|breathing\s+problems?|fever|accident|injury|snake\s*bite)\b/giu;
-const NOT_NOW = /\b(?:how\s+to\s+(?:prevent|avoid|reduce|lower)|ways\s+to\s+(?:prevent|avoid)|what\s+(?:are|is)\s+(?:the\s+)?(?:signs?|symptoms?|causes?|risks?|meaning)|insurance|claim|movie|film|scene|serial|novel|documentary|quiz|school\s+project|(?:years?|decades?)\s+ago|last\s+year|as\s+a\s+child|used\s+to\s+(?:have|get))\b/iu;
+const NOT_NOW = /\b(?:how\s+to\s+(?:prevent|avoid|reduce|lower)|ways\s+to\s+(?:prevent|avoid)|what\s+(?:are|is)\s+(?:the\s+)?(?:signs?|symptoms?|causes?|risks?|meaning)|insurance|claim|movie|film|scene|serial|novel|documentary|quiz|school\s+project|(?:years?|decades?)\s+ago|last\s+year|as\s+a\s+child|used\s+to\s+(?:have|get)|history\s+of|follow[- ]?up|regular\s+check|routine\s+check|look\s+like\s+an?\s+accident|ask(?:s|ing)?\s+(?:about|what|whether|if)|wants?\s+to\s+(?:know|learn)|learn(?:ing)?\s+about|curious\s+about|information\s+(?:on|about))\b/iu;
 export function maskNonEmergency(text: string): string {
   return text.replace(NEGATED, " ").split(/(?<=[.?!;])\s+|\bbut\b|\band\s+now\b|\bnow\b/iu).filter((clause) => !NOT_NOW.test(clause)).join(" . ");
 }

@@ -139,3 +139,27 @@ describe("solid vs weaker evidence", () => {
     expect(res.picks.best).not.toBeNull();
   });
 });
+
+describe("time decides among solid hospitals when care is needed soon", () => {
+  // a big, trusted, comfortable hospital far away against a smaller one close by, both with strong evidence for the service
+  const big = () => fac({ nm: "Big far hospital", sz: "xlarge", ft: 95, cl: [claim("Strong")], rg: registry({ nabh: true, svc: ["dialysis"] }) });
+  const small = () => fac({ nm: "Small near hospital", sz: "small", ft: 65, cl: [claim("Strong")] });
+  const pick = (urgency: "emergency" | "urgent" | "routine", farMinutes: number) => {
+    const b = big(), s = small();
+    const r = run([b, s], { urgency, eta: { [b.id]: eta(farMinutes), [s.id]: eta(20) }, distanceKm: { [b.id]: 22, [s.id]: 7 } });
+    return r.ranked[0].facility.nm;
+  };
+  it("urgent: a hospital 30+ minutes slower never wins on size, trust or comfort alone", () => {
+    expect(pick("urgent", 52)).toBe("Small near hospital");
+    expect(pick("urgent", 60)).toBe("Small near hospital");
+  });
+  it("emergency: even a modest extra delay loses", () => {
+    expect(pick("emergency", 40)).toBe("Small near hospital");
+  });
+  it("routine care is unchanged: the bigger hospital can win when nothing is urgent", () => {
+    expect(pick("routine", 52)).toBe("Big far hospital");
+  });
+  it("two hospitals about equally far are still told apart by trust, comfort and cost", () => {
+    expect(pick("urgent", 24)).toBe("Big far hospital");
+  });
+});

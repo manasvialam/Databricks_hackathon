@@ -283,12 +283,35 @@ export function HospitalWhySheet({ h, lang, onClose, onListen }: { h: NearbyHosp
 export interface PlaceChoice { label: string; state?: string; district?: string; lat: number; lon: number }
 
 /** Uber Eats-style location picker: search a town, PIN or full address, use the device location, or reuse a recent place. */
-export function LocSheet({ lang, busy, msg, candidates, recent, hint, confirm, onYes, onNo, onDevice, onLookup, onPick, onClose, onListen }: {
+interface Suggestion { label: string; sub: string; lat: number; lon: number; kind: string }
+
+export function LocSheet({ lang, busy, msg, candidates, recent, hint, confirm, near, onYes, onNo, onDevice, onLookup, onPick, onClose, onListen }: {
+  near?: { lat: number; lon: number } | null;
   lang: Lang; busy: boolean; msg: string | null; candidates: PlaceChoice[]; recent: PlaceChoice[]; hint?: string | null;
   confirm?: { text: string; place: string } | null; onYes?: () => void; onNo?: () => void;
   onDevice: () => void; onLookup: (q: string) => void; onPick: (c: PlaceChoice) => void; onClose: () => void; onListen?: () => void;
 }) {
   const [q, setQ] = useState("");
+  const [sugg, setSugg] = useState<Suggestion[]>([]);
+  const [searching, setSearching] = useState(false);
+  const [active, setActive] = useState(-1);
+  const typed = q.trim();
+  // address suggestions as the person types: a short pause, then the server's own PIN and town data plus street-level OpenStreetMap results
+  useEffect(() => {
+    setActive(-1);
+    if (typed.length < 2) { setSugg([]); setSearching(false); return; }
+    setSearching(true);
+    const ctl = new AbortController();
+    const id = window.setTimeout(async () => {
+      try {
+        const r = await fetch(`/api/places?q=${encodeURIComponent(typed)}${near ? `&lat=${near.lat}&lon=${near.lon}` : ""}`, { signal: ctl.signal, cache: "no-store" });
+        setSugg(r.ok ? ((await r.json()) as { places: Suggestion[] }).places : []);
+      } catch { if (!ctl.signal.aborted) setSugg([]); }
+      if (!ctl.signal.aborted) setSearching(false);
+    }, 260);
+    return () => { window.clearTimeout(id); ctl.abort(); };
+  }, [typed, near?.lat, near?.lon]); // eslint-disable-line react-hooks/exhaustive-deps
+  const pickSuggestion = (s: Suggestion) => onPick({ label: s.sub ? `${s.label}, ${s.sub}` : s.label, lat: s.lat, lon: s.lon });
   if (confirm) {
     return (
       <Sheet title={t(lang, "locSheetTitle")} onClose={onClose} lang={lang} onListen={onListen}>
@@ -306,15 +329,32 @@ export function LocSheet({ lang, busy, msg, candidates, recent, hint, confirm, o
   return (
     <Sheet title={t(lang, "locSheetTitle")} onClose={onClose} lang={lang} onListen={onListen}>
       {hint && <p className="muted" style={{ marginBottom: 12 }}>{hint}</p>}
-      <form className="searchbar" onSubmit={(e) => { e.preventDefault(); if (q.trim()) onLookup(q); }}>
+      <form className="searchbar" onSubmit={(e) => { e.preventDefault(); if (active >= 0 && sugg[active]) pickSuggestion(sugg[active]); else if (typed) onLookup(q); }}>
         <Search size={18} aria-hidden />
-        <input autoFocus value={q} onChange={(e) => setQ(e.target.value)} placeholder={t(lang, "locSearchPh")} aria-label={t(lang, "locSearchPh")} autoComplete="off" enterKeyHint="search" />
+        <input autoFocus value={q} onChange={(e) => setQ(e.target.value)} placeholder={t(lang, "locSearchPh2")} aria-label={t(lang, "locSearchPh2")} autoComplete="off" enterKeyHint="search"
+          role="combobox" aria-expanded={typed.length >= 2} aria-controls="place-suggestions" aria-autocomplete="list" aria-activedescendant={active >= 0 ? `ps-${active}` : undefined}
+          onKeyDown={(e) => {
+            if (e.key === "ArrowDown" && sugg.length) { e.preventDefault(); setActive((a) => (a + 1) % sugg.length); }
+            else if (e.key === "ArrowUp" && sugg.length) { e.preventDefault(); setActive((a) => (a <= 0 ? sugg.length - 1 : a - 1)); }
+          }} />
         {q.trim() && <button type="submit" className="cap-btn tap" data-kind="send" aria-label={t(lang, "go")} disabled={busy}><Search size={18} aria-hidden /></button>}
       </form>
-      <button type="button" className="loc-row tap" onClick={onDevice} disabled={busy}>
+      {typed.length >= 2 && (
+        <div className="block" id="place-suggestions" role="listbox" style={{ marginTop: 10 }}>
+          {sugg.map((s, i) => (
+            <button key={`${s.label}${s.lat}${s.lon}`} id={`ps-${i}`} type="button" role="option" aria-selected={i === active} className={`loc-row tap${i === active ? " active" : ""}`} onClick={() => pickSuggestion(s)}>
+              <span className="loc-ico"><MapPin size={18} aria-hidden /></span>
+              <span><Name text={s.label} lang={lang} />{s.sub && <small><Name text={s.sub} lang={lang} /></small>}</span>
+            </button>
+          ))}
+          {!sugg.length && <p className="small" role="status" style={{ padding: "10px 4px" }}>{searching ? t(lang, "searchingPlaces") : t(lang, "noPlaceMatch")}</p>}
+          {sugg.length > 0 && searching && <p className="tiny" style={{ padding: "4px" }}>{t(lang, "searchingPlaces")}</p>}
+        </div>
+      )}
+      {typed.length < 2 && <button type="button" className="loc-row tap" onClick={onDevice} disabled={busy}>
         <span className="loc-ico"><LocateFixed size={18} aria-hidden /></span>
         <span>{busy ? t(lang, "locating") : t(lang, "useCurrent")}</span>
-      </button>
+      </button>}
       {msg && <p className="small" role="status" style={{ padding: "4px 4px 0" }}>{msg}</p>}
       {candidates.length > 0 && (
         <div className="block" style={{ marginTop: 14 }}>
@@ -326,7 +366,7 @@ export function LocSheet({ lang, busy, msg, candidates, recent, hint, confirm, o
           ))}
         </div>
       )}
-      {!candidates.length && (
+      {!candidates.length && typed.length < 2 && (
         <div className="block" style={{ marginTop: 14 }}>
           <h3 className="block-h">{t(lang, "suggestedPlaces")}</h3>
           {PRESET_PLACES.map((c) => (
@@ -337,7 +377,7 @@ export function LocSheet({ lang, busy, msg, candidates, recent, hint, confirm, o
           ))}
         </div>
       )}
-      {recent.length > 0 && !candidates.length && (
+      {recent.length > 0 && !candidates.length && typed.length < 2 && (
         <div className="block" style={{ marginTop: 14 }}>
           <h3 className="block-h">{t(lang, "recentPlaces")}</h3>
           {recent.map((c) => (
