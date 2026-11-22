@@ -1,33 +1,3 @@
-field,unique_id,name,record_value,new_value,source
-yearEstablished,c57fbffb-29af-4533-9ea3-6a3fb73715cb,Sum Hospital,1978,2007,web check
-yearEstablished,24ee20d1-acb0-43e7-9335-48b9733b5937,Sanjivani Hospital,,1987,Wikidata Q52843672
-yearEstablished,11ed3d84-bcb7-4233-8b88-92f80cdfdc7a,ESIC Hospitals,,1979,Wikidata Q30262909
-yearEstablished,77ac3849-daa9-4618-9094-e1d8e92dab5b,Sunrise Hospital,,2005,Wikidata Q24944513
-yearEstablished,7b8d93cc-4b6e-404f-a369-a08f84c36668,Maxcure Hospitals,,1992,Wikidata Q30270133
-yearEstablished,fc3b3e51-2401-4e33-a2ea-5f7b80b2b321,"Midas Multispeciality Hospital Pvt. Ltd, Nagpur, Maharashtra, India",,2010,Wikidata Q50035455
-yearEstablished,18a41f66-0543-4c65-b1ef-e94ab09858a7,Hamidia Hospital,,1927,Wikidata Q17027547
-yearEstablished,69201515-916a-4304-aeef-e700f8603083,Batra Hospital,,1987,Wikidata Q30279961
-yearEstablished,22cddd0f-48bf-41d5-acc9-ab3c0c5122a7,Fortis Hospitals,,2004,Wikidata Q30280289
-yearEstablished,3ef5c9f7-36f1-4af2-9486-88f351d4c188,"Asian Hospital, Faridabad",,2010,Wikidata Q22080748
-yearEstablished,672d792e-dcec-40f0-a403-697636286f10,Oyster & Pearl Prime Hospital,1960,2008,web check
-yearEstablished,a0eb2a36-e2fd-4c04-9ada-e648604822e3,NIMHANS,,1974,Wikidata Q3595268
-yearEstablished,aa1bca39-e513-4582-bed8-f563805d6f07,MIOT International,1987,1999,web check
-yearEstablished,3ebea27c-f11d-4e01-b558-ed4aeb5937bd,Amala Hospital,,1978,Wikidata Q4739211
-yearEstablished,67646cb8-d586-45fe-9a91-8b0ba8838d6b,"ACE Hospital and Research Centre, Pune",,1950,Wikidata Q52856456
-yearEstablished,8a522979-8cd7-4b38-8048-6beddc7afc39,Dr. Panjabrao Deshmukh Memorial Medical College and Hospital,,1984,Wikidata Q28173185
-yearEstablished,d52a1b11-02b5-482c-b86c-afccc95b07c6,National Hospital,,2004,Wikidata Q30260634
-yearEstablished,d60bdb0f-0d11-4df4-bc8f-1c89c68eb5d4,Mother Hospital,,1991,Wikidata Q6917361
-yearEstablished,c0d37a04-d3db-458c-8216-add6a8c68176,BARC Hospital,,1954,Wikidata Q30279954
-yearEstablished,d6d7b774-ea7c-4f42-b148-e5751f5be97f,Apollo Hospital,,2001,Wikidata Q54556842
-yearEstablished,a8cbe09a-8dd9-443a-8ac7-2d34e9394794,Sharvari Hospital,,2023,Wikidata Q140620038
-yearEstablished,b2f23e23-677f-470c-8677-11e1e9bbb8a5,Seethapathy Clinic & Hospital,,2013,Wikidata Q61932788
-yearEstablished,e1959fe3-1d15-42f1-b446-7c8ab094a381,"Mahatma Gandhi Memorial Hospital, Warangal",,1954,Wikidata Q6733515
-yearEstablished,e407b1a1-cb0d-4c7b-b883-47c50e72b31a,Patel Hospital,,1976,Wikidata Q30270340
-yearEstablished,ee21e4d4-da1b-484a-8d22-1b0b3ff286f9,Sunshine Hospitals,,2009,Wikidata Q52843705
-yearEstablished,f9139402-d36c-4e9a-820c-8a9582d094fe,The Calcutta Unani Medical College and Hospital,,1994,Wikidata Q48727347
-yearEstablished,8e69a83e-ff4c-4103-bb74-d119744b6bfd,Choithram Hospital,,1979,Wikidata Q30279966
-capacity,5106028d-191f-4a51-a596-05d8b41e857b,Wockhardt Hospital,1600,118,web check
-capacity,77ac3849-daa9-4618-9094-e1d8e92dab5b,Sunrise Hospital,,250,Wikidata Q24944513
-capacity,8e947c15-8508-4832-864b-eda749263ed8,Durgabai Deshmukh Hospital,,200,Wikidata Q5316402
-capacity,d60bdb0f-0d11-4df4-bc8f-1c89c68eb5d4,Mother Hospital,,360,Wikidata Q6917361
-capacity,a8cbe09a-8dd9-443a-8ac7-2d34e9394794,Sharvari Hospital,,50,Wikidata Q140620038
+version https://git-lfs.github.com/spec/v1
+oid sha256:ad8f90e5f60d9fafac0e17f829b241c4bcc3ba16a212e36834901b2912ce59b1
+size 3240
