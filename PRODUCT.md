@@ -60,5 +60,8 @@ Binding choices made by the user: a very clean, smooth, Apple-like phone UI in c
 ## Accessibility & Inclusion
 Built for low-literacy and frightened users: voice in and out, icons beside words, short sentences, large touch targets. Five scripts (Latin, Devanagari, Tamil, Telugu, Malayalam) must render correctly on low-end Android and iOS using system fonts where possible. Text on glass must keep WCAG AA contrast; honour reduced-motion and reduced-transparency; work on slow data and low-end phones; keyboard and screen-reader operable.
 
+## Demo dashboard
+A 4-page Databricks AI/BI dashboard explains the data work for judges: whether raw data can be trusted, one question traced end to end, whether the evidence is right, and a reference page with every cleaning step and its source. See `HANDOFF.md` section 26.
+
 ## Handoff
 Full project handoff (repository map, data, ranking, status, to-do list): see `HANDOFF.md`.
