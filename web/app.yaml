@@ -4,5 +4,7 @@ command: ["npm", "run", "start:app"]
 env:
   - name: FM_ENDPOINT
     value: databricks-meta-llama-3-3-70b-instruct
+  - name: DATABRICKS_WAREHOUSE_ID
+    valueFrom: warehouse        # resource "warehouse": the SQL warehouse holding workspace.facility_finder.app_snapshot
   - name: TRAFFIC_PROVIDER
     value: none

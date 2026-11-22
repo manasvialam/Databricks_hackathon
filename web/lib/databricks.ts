@@ -93,3 +93,24 @@ export async function sqlQuery(statement: string, parameters: { name: string; va
   const cols = j.manifest?.schema.columns.map((c) => c.name) ?? [];
   return (j.result?.data_array ?? []).map((row) => Object.fromEntries(cols.map((c, i) => [c, row[i]])));
 }
+
+/** A query that may wait for the warehouse to wake up (a stopped serverless warehouse takes a minute or so). Polls until done. */
+export async function sqlQueryLong(statement: string, maxWaitMs = 240_000): Promise<Record<string, string | null>[]> {
+  const started = Date.now();
+  let res = await authed("/api/2.0/sql/statements", {
+    method: "POST",
+    body: JSON.stringify({ warehouse_id: process.env.DATABRICKS_WAREHOUSE_ID, statement, wait_timeout: "30s", on_wait_timeout: "CONTINUE", format: "JSON_ARRAY", disposition: "INLINE" }),
+  }, 40_000);
+  type Body = { statement_id?: string; status: { state: string; error?: { message: string } }; manifest?: { schema: { columns: { name: string }[] } }; result?: { data_array?: (string | null)[][] } };
+  let j = (await res.json()) as Body;
+  while (res.ok && (j.status.state === "PENDING" || j.status.state === "RUNNING")) {
+    if (Date.now() - started > maxWaitMs) throw new Error("sql: timed out waiting for the warehouse");
+    await new Promise((r) => setTimeout(r, 3000));
+    res = await authed(`/api/2.0/sql/statements/${j.statement_id}`, { method: "GET" }, 40_000);
+    j = (await res.json()) as Body;
+  }
+  if (!res.ok) throw new Error(`sql statements ${res.status}`);
+  if (j.status.state !== "SUCCEEDED") throw new Error(`sql ${j.status.state}: ${j.status.error?.message ?? ""}`);
+  const cols = j.manifest?.schema.columns.map((c) => c.name) ?? [];
+  return (j.result?.data_array ?? []).map((row) => Object.fromEntries(cols.map((c, i) => [c, row[i]])));
+}

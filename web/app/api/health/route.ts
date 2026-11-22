@@ -1,4 +1,4 @@
-import { snapshot } from "@/lib/snapshot";
+import { snapshot, sourceInfo } from "@/lib/snapshot";
 import { llmConfigured, warehouseConfigured } from "@/lib/databricks";
 
 export const runtime = "nodejs";
@@ -13,6 +13,6 @@ export async function GET() {
     ok: true,
     tier: warehouse && llm && traffic ? 1 : llm ? 2 : 3,
     llm, warehouse, liveTraffic: traffic,
-    data: { source: "snapshot", built: snap.meta.built, facilities: snap.meta.facilities, registryListAsOf: snap.meta.registry_list_as_of },
+    data: { ...sourceInfo(), built: snap.meta.built, facilities: snap.meta.facilities, registryListAsOf: snap.meta.registry_list_as_of },
   });
 }
