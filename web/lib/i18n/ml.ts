@@ -175,6 +175,7 @@ export const ml: Pack = {
     trafficDay: "{area}-ലെ സാധാരണ ദിനം",
     trafficDayHere: "ഇവിടത്തെ സാധാരണ ദിനം",
     trafficTypical: "സാധാരണ നില, തത്സമയ ട്രാഫിക് അല്ല.",
+    aDoctor: "ഒരു ഡോക്ടർ",
     sayNeedLine: "{need} നെക്കുറിച്ച് എനിക്ക് ഡോക്ടറെ കാണണം.",
     openMap: "മാപ്പ് തുറക്കുക",
     routeUnavailable: "റോഡ് റൂട്ട് ഇപ്പോൾ ലഭ്യമല്ല. വര നേരെയാണ്, സമയം ഏകദേശമാണ്.",

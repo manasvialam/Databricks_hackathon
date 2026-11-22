@@ -9,6 +9,7 @@ import { useRoute } from "./RouteMap";
 import { TrafficStrip } from "./Traffic";
 import { Name } from "./Name";
 import { cleanNeed } from "@/lib/need";
+import { useMachineTranslation } from "@/lib/client/mt";
 import { Tx } from "./Tx";
 import { RideButtons } from "./RideButtons";
 
@@ -66,6 +67,7 @@ export function HospitalCard({ h, lang, need, guidance, origin, onWhy, onDoor, o
   const route = useRoute(origin, h);
   // what to say at the desk: the model's short summary of the problem, without "I'm having" or a closing full stop, so the sentence reads on its own
   const shortNeed = cleanNeed(need);
+  const shortLocal = useMachineTranslation(shortNeed, lang);   // translated into the person's language when it is not English
   // how well this hospital fits what was described: the model's score where there is one, otherwise whether its listed specialties matched
   const level: "high" | "mid" | "low" = h.fit != null ? (h.fit >= 0.7 ? "high" : h.fit >= 0.4 ? "mid" : "low") : h.matched.length ? "mid" : "low";
   const on = level === "high" ? 3 : level === "mid" ? 2 : 1;
@@ -120,7 +122,7 @@ export function HospitalCard({ h, lang, need, guidance, origin, onWhy, onDoor, o
         <>
           <button type="button" className="door-card tap" onClick={onDoor}>
             <span className="door-ico"><Hand size={22} strokeWidth={2} aria-hidden /></span>
-            <span className="door-t">{t(lang, "showAtDoor")}<small>{shortNeed ? t(lang, "sayNeedLine", { need: shortNeed }) : t(lang, "sayLine", { service: "a doctor" })}</small></span>
+            <span className="door-t">{t(lang, "showAtDoor")}<small>{shortNeed ? t(lang, "sayNeedLine", { need: shortLocal ?? shortNeed }) : t(lang, "sayLine", { service: lang === "en" ? "a doctor" : t(lang, "aDoctor") })}</small></span>
             <ChevronRight size={20} aria-hidden />
           </button>
           <div className="more">

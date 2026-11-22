@@ -1,5 +1,6 @@
 "use client";
 import { cleanNeed, isLatin, lcFirst } from "@/lib/need";
+import { useMachineTranslation } from "@/lib/client/mt";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { BadgeCheck, Check, CircleCheck, Clock, ExternalLink, LocateFixed, MapPin, Minus, Navigation, Phone, Plus, Search, ShieldQuestion, Volume2, X } from "lucide-react";
 import type { ResultDto } from "@/lib/recommend";
@@ -91,7 +92,9 @@ const host = (u: string) => { try { return new URL(u).hostname.replace(/^www\./,
 /** Hold-up-to-the-desk view: the sentence to say, big and in English (what the staff read), the same in the person's language, and what to bring. */
 export function DoorSheet({ name, lang, serviceId, need: said, onClose, onListen }: { name: string; lang: Lang; serviceId: string; need?: string | null; onClose: () => void; onListen?: () => void }) {
   const svcEn = svcLabel(serviceId, "en");
-  const own = cleanNeed(said);                                    // what the person said, when they described a problem instead of tapping a tile
+  const own = cleanNeed(said);
+  const ownLocal = useMachineTranslation(own && isLatin(own) ? own : null, lang);   // the problem in the person's own language (null while it loads or when offline)
+                                    // what the person said, when they described a problem instead of tapping a tile
   const sayEn = own && isLatin(own) ? t("en", "sayNeedLine", { need: own }) : t("en", "sayLine", { service: serviceId ? lcFirst(svcEn) : "a doctor" });
   return (
     <Sheet title={t(lang, "showAtDoor")} onClose={onClose} lang={lang} onListen={onListen}>
@@ -99,7 +102,7 @@ export function DoorSheet({ name, lang, serviceId, need: said, onClose, onListen
         <small lang="en">{name}</small>
         <p lang="en">{sayEn}</p>
         {own && isLatin(own) && serviceId && <p className="door-own" lang="en">{t("en", "sayLine", { service: lcFirst(svcEn) })}</p>}
-        {lang !== "en" && (own || serviceId) && <p className="door-own" lang={lang}>{own ? t(lang, "sayNeedLine", { need: own }) : t(lang, "sayLine", { service: svcLabel(serviceId, lang) })}</p>}
+        {lang !== "en" && <p className="door-own" lang={lang}>{own ? t(lang, "sayNeedLine", { need: ownLocal ?? own }) : t(lang, "sayLine", { service: serviceId ? svcLabel(serviceId, lang) : t(lang, "aDoctor") })}</p>}
       </div>
       <div className="block" style={{ marginTop: 20 }}>
         <h3 className="block-h">{t(lang, "carry")}</h3>

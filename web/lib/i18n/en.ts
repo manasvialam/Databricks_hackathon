@@ -173,6 +173,7 @@ export const en = {
   trafficDay: "Typical day in {area}",
   trafficDayHere: "Typical day here",
   trafficTypical: "Usual pattern, not live traffic.",
+  aDoctor: "a doctor",
   sayNeedLine: "I need to see a doctor about {need}.",
   openMap: "Open map",
   routeUnavailable: "Road route unavailable right now. The line is straight and the time is an estimate.",

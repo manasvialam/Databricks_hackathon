@@ -175,6 +175,7 @@ export const hi: Pack = {
     trafficDay: "{area} में आम दिन",
     trafficDayHere: "यहाँ का आम दिन",
     trafficTypical: "आम तौर पर ऐसा रहता है, लाइव ट्रैफ़िक नहीं।",
+    aDoctor: "डॉक्टर",
     sayNeedLine: "मुझे {need} के बारे में डॉक्टर को दिखाना है।",
     openMap: "नक्शा खोलें",
     routeUnavailable: "सड़क का रास्ता अभी उपलब्ध नहीं। रेखा सीधी है और समय अनुमानित है।",
