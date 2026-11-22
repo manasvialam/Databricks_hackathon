@@ -1,0 +1,128 @@
+{
+  "schemaVersion": 2,
+  "generatedAt": "2026-11-21T00:00:00Z",
+  "title": "Design System: Hospital Referral Slip (name undecided)",
+  "extensions": {
+    "colorMeta": {
+      "board": { "role": "primary", "displayName": "Board Green", "canonical": "#0b5d3b", "tonalRamp": ["#021a10", "#073f28", "#0b5d3b", "#0f7a4e", "#3f9a73", "#7bb99d", "#b5d8c8", "#e3f1ea"] },
+      "board-deep": { "role": "primary", "displayName": "Board Deep", "canonical": "#073f28", "tonalRamp": ["#010d08", "#042015", "#073f28", "#0b5d3b", "#2f7a5b", "#6aa890", "#a8cfbf", "#dcece4"] },
+      "signal": { "role": "secondary", "displayName": "Signal Yellow", "canonical": "#ffc20e", "tonalRamp": ["#1c1500", "#4a3500", "#8a6a00", "#c99700", "#ffc20e", "#ffd45a", "#ffe699", "#fff6d6"] },
+      "facility": { "role": "secondary", "displayName": "Facility Blue", "canonical": "#0b63cc", "tonalRamp": ["#021a38", "#08458f", "#0b63cc", "#3a84dc", "#6ea4e6", "#a0c4f0", "#c8dcf6", "#e6f0fc"] },
+      "emergency": { "role": "tertiary", "displayName": "Emergency Red", "canonical": "#c8102e", "tonalRamp": ["#3a0610", "#6e0a1b", "#a30d26", "#c8102e", "#de4a60", "#ea8393", "#f5bcc5", "#ffe3e7"] },
+      "paper": { "role": "neutral", "displayName": "Paper", "canonical": "#f3f6f4", "tonalRamp": ["#13201a", "#455750", "#7b8c85", "#a9b8b1", "#d5dfd9", "#e6ece8", "#f3f6f4", "#ffffff"] },
+      "ink": { "role": "neutral", "displayName": "Ink", "canonical": "#13201a", "tonalRamp": ["#050907", "#13201a", "#2a3b34", "#455750", "#6d7f78", "#98a8a1", "#c4d0ca", "#e8eeea"] }
+    },
+    "typographyMeta": {
+      "display": { "displayName": "Numerals", "purpose": "Kilometres and minutes on the slip; tabular figures." },
+      "headline": { "displayName": "Headline", "purpose": "Page prompt and emergency heading." },
+      "title": { "displayName": "Hospital name", "purpose": "The facility name on the slip." },
+      "body": { "displayName": "Body", "purpose": "Default 18px text." },
+      "label": { "displayName": "Chip label", "purpose": "Sentence-case chip text, 14px bold." }
+    },
+    "shadows": [
+      { "name": "panel-lift", "value": "0 14px 30px -14px rgba(0,0,0,.45)", "purpose": "Soft downward lift under the slip and emergency card." },
+      { "name": "live-pulse", "value": "0 0 0 14px rgba(255,194,14,0)", "purpose": "Mic ring animating while listening." }
+    ],
+    "motion": [
+      { "name": "sheet-rise", "value": ".24s ease-out, translateY(24px) to 0 with fade", "purpose": "Bottom sheet entrance." },
+      { "name": "mic-pulse", "value": "1.4s ease-in-out infinite", "purpose": "Listening indicator." },
+      { "name": "reduced-motion", "value": "all animation and transition durations .001ms", "purpose": "prefers-reduced-motion override." }
+    ],
+    "breakpoints": [
+      { "name": "narrow", "value": "max-width: 380px" },
+      { "name": "wide", "value": "min-width: 760px" }
+    ]
+  },
+  "components": [
+    {
+      "name": "Primary Button",
+      "kind": "button",
+      "refersTo": "button-primary",
+      "description": "Call, retry, apply: the one filled action in a group.",
+      "html": "<button class=\"ds-btn ds-btn-primary\">Call</button>",
+      "css": ".ds-btn { display:inline-flex; align-items:center; justify-content:center; gap:8px; min-height:56px; padding:12px 18px; border-radius:16px; font:700 18px/1.45 'Atkinson Hyperlegible', system-ui, sans-serif; cursor:pointer; color:#0b5d3b; background:#fff; border:2px solid #0b5d3b; } .ds-btn-primary { background:#0b5d3b; color:#fff; } .ds-btn-primary:hover { background:#073f28; } .ds-btn:focus-visible { outline:3px solid #ffc20e; outline-offset:3px; }"
+    },
+    {
+      "name": "Secondary Button",
+      "kind": "button",
+      "refersTo": "button-secondary",
+      "description": "Directions, why this, read aloud: outlined white.",
+      "html": "<button class=\"ds-btn\">Directions</button>",
+      "css": ".ds-btn { display:inline-flex; align-items:center; justify-content:center; gap:8px; min-height:56px; padding:12px 18px; border-radius:16px; font:700 18px/1.45 'Atkinson Hyperlegible', system-ui, sans-serif; cursor:pointer; color:#0b5d3b; background:#fff; border:2px solid #0b5d3b; } .ds-btn:hover { background:#f3f6f4; } .ds-btn:focus-visible { outline:3px solid #ffc20e; outline-offset:3px; }"
+    },
+    {
+      "name": "Text Input",
+      "kind": "input",
+      "refersTo": "input",
+      "description": "Place search and other plain fields inside panels.",
+      "html": "<input class=\"ds-input\" placeholder=\"Town or PIN code\">",
+      "css": ".ds-input { font:400 18px/1.45 'Atkinson Hyperlegible', system-ui, sans-serif; min-height:56px; padding:10px 14px; border-radius:14px; border:2px solid #d5dfd9; background:#fff; color:#13201a; } .ds-input:focus { border-color:#0b5d3b; outline:none; }"
+    },
+    {
+      "name": "Chips",
+      "kind": "chip",
+      "refersTo": "chip",
+      "description": "Ranking tag, registry mark, possible-match warning, ownership.",
+      "html": "<span class=\"ds-chip ds-chip-tag\">Fastest</span> <span class=\"ds-chip ds-chip-reg\">Registry listed</span> <span class=\"ds-chip ds-chip-warn\">Possible match</span> <span class=\"ds-chip\">Government</span>",
+      "css": ".ds-chip { display:inline-flex; align-items:center; gap:6px; font:700 14px/1.45 'Atkinson Hyperlegible', system-ui, sans-serif; padding:5px 10px; border-radius:999px; background:#f3f6f4; color:#13201a; border:1px solid #d5dfd9; } .ds-chip-reg { background:#e6f0fc; color:#08458f; border-color:#b8d3f3; } .ds-chip-tag { background:#0b5d3b; color:#fff; border-color:#0b5d3b; } .ds-chip-warn { background:#fff6d6; color:#4a3500; border-color:#ecc95a; }"
+    },
+    {
+      "name": "Slip Panel",
+      "kind": "card",
+      "refersTo": "panel",
+      "description": "White sign panel with inset green keyline; holds all clinical content.",
+      "html": "<article class=\"ds-panel\"><h2 class=\"ds-name\">District Hospital</h2><p class=\"ds-quote\">&ldquo;Emergency obstetric care available 24 hours.&rdquo;</p></article>",
+      "css": ".ds-panel { position:relative; background:#fff; border-radius:18px; padding:22px 20px; color:#13201a; font:400 18px/1.45 'Atkinson Hyperlegible', system-ui, sans-serif; box-shadow:0 14px 30px -14px rgba(0,0,0,.45); } .ds-panel::before { content:''; position:absolute; inset:6px; border:2px solid #0b5d3b; border-radius:13px; opacity:.16; pointer-events:none; } .ds-panel > * { position:relative; } .ds-name { margin:12px 0 0; font-size:28px; line-height:1.12; font-weight:700; letter-spacing:-0.01em; } .ds-quote { margin:12px 0 0; padding:12px 14px; background:#e6f0fc; border:1px solid #b8d3f3; border-radius:12px; font-size:17px; }"
+    },
+    {
+      "name": "Road Bar",
+      "kind": "custom",
+      "refersTo": "panel",
+      "description": "Signature: solid free-flow minutes, hatched yellow delay, bracketed likely range.",
+      "html": "<div class=\"ds-road\"><div class=\"ds-free\"></div><div class=\"ds-delay\"></div><div class=\"ds-range\"></div></div>",
+      "css": ".ds-road { position:relative; height:14px; margin:26px 0 8px; background:#f3f6f4; border-radius:7px; border:1px solid #d5dfd9; } .ds-free { position:absolute; inset:0 auto 0 0; width:45%; background:#0b5d3b; border-radius:7px 0 0 7px; } .ds-delay { position:absolute; top:0; bottom:0; left:45%; width:25%; background:repeating-linear-gradient(135deg,#ffc20e 0 6px,#1c1500 6px 8px); } .ds-range { position:absolute; top:-6px; bottom:-6px; left:40%; width:40%; border:2px solid #13201a; border-top:0; border-bottom:0; border-radius:2px; box-shadow:0 0 0 2px #fff; }"
+    },
+    {
+      "name": "Emergency Card",
+      "kind": "custom",
+      "refersTo": "emergency-card",
+      "description": "Replaces the slip when the red-flag gate fires; red ground, white call buttons.",
+      "html": "<section class=\"ds-emerg\"><h1>Call for help now</h1><a class=\"ds-call\" href=\"tel:108\">Call 108</a></section>",
+      "css": ".ds-emerg { background:#c8102e; color:#fff; border-radius:18px; padding:22px 20px; font:400 18px/1.45 'Atkinson Hyperlegible', system-ui, sans-serif; box-shadow:0 14px 30px -14px rgba(0,0,0,.55); } .ds-emerg h1 { margin:0; font-size:30px; line-height:1.1; } .ds-call { display:flex; align-items:center; margin-top:18px; background:#fff; color:#c8102e; text-decoration:none; font-weight:700; font-size:26px; border-radius:16px; padding:14px 18px; min-height:68px; }"
+    }
+  ],
+  "narrative": {
+    "northStar": "The Highway Board",
+    "overview": "The interface borrows India's highway wayfinding boards: a deep green ground, white sign panels that carry the real information, and a small set of signal colors that each mean one thing. One answer, the referral slip, owns the screen. Clinical content sits on opaque white; Glisse glass (data-theme dark) appears only on the top strip and composer. Color carries meaning: yellow doubt, blue facility facts, red emergency only.",
+    "keyCharacteristics": [
+      "Opaque white panels on a board-green ground, with a faint inset green keyline on each panel.",
+      "Glass is reserved for floating chrome; panel buttons are solid and outlined.",
+      "Single typeface family (Atkinson Hyperlegible) with system Indic fonts as the fallback chain; hierarchy by size and weight 700 only.",
+      "Large tabular numerals for distance and time.",
+      "The road bar is the one signature graphic."
+    ],
+    "rules": [
+      { "name": "The One Meaning Rule", "body": "Every signal color has a single job (yellow doubt, blue fact, red emergency). A color is never borrowed for emphasis.", "section": "colors" },
+      { "name": "The Red Is Reserved Rule", "body": "Emergency red appears only in the emergency card and its call buttons.", "section": "colors" },
+      { "name": "The Contrast On Board Rule", "body": "Text placed directly on the green ground is white (or the pale green #d6efe3 for footers) and carries a faint text-shadow; clinical text never sits directly on green.", "section": "colors" },
+      { "name": "The Script Safety Rule", "body": "For hi, ta, te, ml, letter-spacing resets to 0 and line height rises. Negative tracking is Latin-only.", "section": "typography" },
+      { "name": "The Weight Pair Rule", "body": "Only 400 and 700 exist. Hierarchy comes from size and weight, not from additional fonts or weights.", "section": "typography" },
+      { "name": "The Glass Is Chrome Rule", "body": "Glass appears on the top strip, the composer and its mic only. Slips, quotes, cautions, panel buttons and sheets are opaque.", "section": "elevation" }
+    ],
+    "dos": [
+      "Do keep clinical content on opaque Panel White and reserve Glisse glass (data-theme=\"dark\") for the top strip, composer and mic.",
+      "Do use Signal Yellow only for doubt or delay, Facility Blue only for facts about a facility, and Emergency Red only for emergencies.",
+      "Do keep touch targets at 56px (44px minimum for text buttons and strip controls) and body text at 18px.",
+      "Do show the road bar, confidence meter and quoted evidence with source on any recommendation.",
+      "Do reset letter-spacing and raise line height for Indic scripts.",
+      "Do pair every signal color with an icon or words; color is never the only carrier."
+    ],
+    "donts": [
+      "Don't put text directly on the green ground unless it is white with the board text-shadow.",
+      "Don't add decorative colors, extra typefaces or weights beyond 400 and 700.",
+      "Don't use glass for panels, buttons inside panels, or sheets.",
+      "Don't render government emblems or scheme logos.",
+      "Don't let the slip become one of many identical chat cards; one slip owns the screen and alternatives stay compact."
+    ]
+  }
+}

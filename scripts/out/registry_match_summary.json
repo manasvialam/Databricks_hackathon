@@ -1,0 +1,11 @@
+{
+  "facilities": 9989,
+  "hem_rows": 39737,
+  "list_as_of": "2026-11-21",
+  "verified": 1452,
+  "possible": 531,
+  "badge_eligible": 1447,
+  "helpline_numbers_ignored": 129,
+  "verified_state_note": "state agreement is checked in the notebook; precision needs the hand-labelled review sample",
+  "hem_not_matched_verified": 38285
+}
