@@ -181,7 +181,8 @@ export function App() {
   /** The model asks where the person is, mentioning the care they need. */
   const loadAsk = useCallback(() => {
     setAskText(t(lang, "chooseWhereHint"));
-    api<{ text: string }>("/api/assist", { kind: "ask", lang, need: need.current }).then((r) => setAskText(r.text)).catch(() => {});
+    const say = (text: string) => { setAskText(text); if (viaVoice.current) speak(text, speechLang(lang), true); };
+    api<{ text: string }>("/api/assist", { kind: "ask", lang, need: need.current }).then((r) => say(r.text)).catch(() => say(t(lang, "chooseWhereHint")));
   }, [lang]);
 
   const useDevice = useCallback(() => {
@@ -234,9 +235,13 @@ export function App() {
     if (viewRef.current === "pickcare" && shownRef.current[i]) return { id: shownRef.current[i].id, services: shownRef.current[i].services };
     return null;
   };
+  /** When the person spoke, every reply is spoken back as well as shown (in order, after anything already being said). */
+  const speakReply = (text: string) => { if (viaVoice.current && !speak(text, speechLang(lang), true)) setNotice(t(lang, "ttsUnavailable")); };
+  const endVoiceTurn = () => { viaVoice.current = false; setVoiceThinking(false); };
   const addAssistant = (text: string, note = false) => {
     setThread((th) => [...th, { role: "assistant", text, note }]);
     history.current = [...history.current, ASSISTANT_PREFIX + text].slice(-8);
+    speakReply(text);
   };
 
   fitHospitalsRef.current = fitHospitals;
@@ -275,6 +280,7 @@ export function App() {
       if (tr.chat && !tr.emergency && !g) {
         setThinking(false);
         addAssistant(t(lang, "chatAsk"));
+        endVoiceTurn();
         if (!cur) setView("chat");
         return;
       }
@@ -287,7 +293,7 @@ export function App() {
           try { solid = (await api<{ services: ServiceId[] }>("/api/covers", { id: cur.id })).services; } catch { /* decide with what we have */ }
         }
         const missing = services.filter((s) => !cur.services.includes(s) && !solid.includes(s));
-        if (!missing.length) { if (follow) { addAssistant(follow); asked.current++; } else addAssistant(t(lang, "stillFits"), true); return; }
+        if (!missing.length) { if (follow) { addAssistant(follow); asked.current++; } else addAssistant(t(lang, "stillFits"), true); endVoiceTurn(); return; }
         addAssistant(t(lang, "switchedCare"), true);
         if (viewRef.current === "result") services = [...new Set([...services, ...cur.services])].slice(0, 4);   // the new search keeps the care already asked for
         setRec(null); setView("loading");
@@ -305,6 +311,7 @@ export function App() {
       await fetchRec(services, urgency, at);
     } catch {
       setThinking(false);
+      speakReply(t(lang, online ? "error" : "offline")); endVoiceTurn();
       setErrMsg(online ? t(lang, "error") : t(lang, "offline"));
       setView(g ? "idle" : "error");
     }
@@ -359,7 +366,7 @@ export function App() {
   // talk mode: a question asked by voice gets the best answer spoken back
   const sayAnswer = useCallback((name: string, min: number, km: number, sure: string) => {
     viaVoice.current = false; setVoiceThinking(false);
-    const ok = speak(t(lang, "readSlip", { name, min, km, sure }), hasKey(lang, "readSlip") ? speechLang(lang) : "en-IN");
+    const ok = speak(t(lang, "readSlip", { name, min, km, sure }), hasKey(lang, "readSlip") ? speechLang(lang) : "en-IN", true);
     if (!ok) setNotice(t(lang, "ttsUnavailable"));
   }, [lang]);
   useEffect(() => {

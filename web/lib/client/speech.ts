@@ -84,12 +84,12 @@ export const speechRate = (v: SpeechSynthesisVoice | null) => (v && isNatural(v)
  * Speak sentence by sentence so a tap can cancel quickly. Returns false, and says nothing, when the device lists its
  * voices and none speaks this language: an English voice reading Tamil script is silent or gibberish.
  */
-export function speak(text: string, lang: string): boolean {
+export function speak(text: string, lang: string, queue = false): boolean {   // queue: add after what is already being said instead of replacing it
   if (!canSpeak()) return false;
   const voice = voiceFor(lang);
   if (!voice && voices.length) return false;
   const synth = window.speechSynthesis;
-  synth.cancel();
+  if (!queue) synth.cancel();
   const mine = ++gen;                                            // cancelling fires "interrupted" on the old sentences; only the newest speech counts
   const parts = text.split(/(?<=[.!?।])\s+/).map((s) => s.trim()).filter(Boolean);      // split after sentence ends only, never inside 15.8
   if (!parts.length) parts.push(text);

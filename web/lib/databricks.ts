@@ -52,7 +52,7 @@ Return ONLY a JSON object with these keys:
 - careRequest: true when the person describes a symptom or health problem, or asks for a hospital, clinic, doctor, test or treatment; false for a greeting, thanks, a question about the app or any other chat
 - specialties: up to 3 kinds of doctor or department that suit the need, most suitable first, chosen ONLY from: ${SPECIALTIES.map((s) => s.id).join(", ")} (for example knee pain: bones; skin rash: skin; fever with no clear cause: general)
 - possibleConditions: up to 3 objects {name, why}. These are patterns that can be seen with the symptoms, never a diagnosis.
-- followUps: up to 2 short questions, only if the answer would change where to go. Write them in ${LANGS.find((l) => l.id === lang)?.label ?? "English"}, in plain words.
+- followUps: up to 2 short questions, only if the answer would change where to go. Never ask where the person is or which city or area: the app asks for the place itself. Write them in ${LANGS.find((l) => l.id === lang)?.label ?? "English"}, in plain words.
 - location: a place named in the message, or null. If it is written in an Indian script, give its usual English spelling.
 - summary: one plain sentence in English
 The message may be in English, Hindi, Tamil, Telugu or Malayalam, or a mix, in any script.
