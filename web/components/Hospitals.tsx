@@ -10,6 +10,7 @@ import { TrafficStrip } from "./Traffic";
 import { Name } from "./Name";
 import { cleanNeed } from "@/lib/need";
 import { Tx } from "./Tx";
+import { RideButtons } from "./RideButtons";
 
 const MAX_TAGS = 2;
 
@@ -114,6 +115,7 @@ export function HospitalCard({ h, lang, need, guidance, origin, onWhy, onDirecti
           : <span className="btn" aria-disabled="true"><Phone size={18} aria-hidden />{t(lang, "call")}</span>}
         <button type="button" className="btn btn-soft tap" onClick={onDirections}><Navigation size={18} aria-hidden />{t(lang, "directions")}</button>
       </div>
+      <RideButtons origin={origin} dest={{ lat: h.lat, lon: h.lon, name: h.name }} lang={lang} />
       {!h.phone && <p className="tiny" style={{ marginTop: 8, textAlign: "center" }}>{t(lang, "noPhone")}</p>}
 
       {guidance && <div className="more">

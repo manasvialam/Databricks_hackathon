@@ -753,3 +753,7 @@ h1, h2, h3, p, blockquote { margin: 0; }
 @media (max-width: 420px) { .locbtn-v { font-size: 15px; } .topbar .icon-btn { width: 38px; height: 38px; } .tb-group { gap: 6px; } .sos { padding: 0 10px; } }
 
 .loc-row.active { background: var(--surface-3, #ececf0); }
+
+.ride-row { margin-top: 10px; }
+.ride-row .btn { padding: 0 12px; min-height: 48px; }
+.ride-note { margin-top: 8px; text-align: center; }

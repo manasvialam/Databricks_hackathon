@@ -9,6 +9,7 @@ import { Tx } from "./Tx";
 import { lcFirst } from "@/lib/need";
 import { RouteMap, useRoute } from "./RouteMap";
 import { TrafficStrip } from "./Traffic";
+import { RideButtons } from "./RideButtons";
 
 export { svcLabel };
 
@@ -139,6 +140,7 @@ export function Slip({ r, lang, services, origin, onWhy, onDirections, onDoor }:
           : <span className="btn" aria-disabled="true"><Phone size={18} aria-hidden />{t(lang, "call")}</span>}
         <button type="button" className="btn btn-soft tap" onClick={onDirections}><Navigation size={18} aria-hidden />{t(lang, "directions")}</button>
       </div>
+      <RideButtons origin={origin} dest={{ lat: r.lat, lon: r.lon, name: r.name }} lang={lang} />
       {!phone && <p className="tiny" style={{ marginTop: 8, textAlign: "center" }}>{t(lang, "noPhone")}</p>}
 
       <button type="button" className="door-card tap" onClick={onDoor}>

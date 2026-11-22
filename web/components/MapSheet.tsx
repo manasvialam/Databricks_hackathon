@@ -7,6 +7,7 @@ import { Name } from "./Name";
 import { TxText } from "./Tx";
 import { RouteMap, useRoute } from "./RouteMap";
 import { TrafficStrip } from "./Traffic";
+import { RideButtons } from "./RideButtons";
 
 export interface MapTarget { name: string; lat: number; lon: number; fallbackKm?: number; fallbackMinutes?: number }
 
@@ -42,6 +43,7 @@ export function MapSheet({ origin, dest, lang, onClose, onListen }: { origin: { 
         </div>
       )}
       <a className="btn btn-soft tap" style={{ width: "100%", marginTop: 14 }} href={gmaps} target="_blank" rel="noopener noreferrer"><ExternalLink size={17} aria-hidden />{t(lang, "openInMaps")}</a>
+      <div style={{ marginTop: 10 }}><RideButtons origin={origin} dest={dest} lang={lang} /></div>
     </Sheet>
   );
 }
