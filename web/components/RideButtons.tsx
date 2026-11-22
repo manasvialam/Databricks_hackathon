@@ -18,8 +18,8 @@ export function RideButtons({ origin, dest, lang, onDirections }: { origin: Poin
     <>
       <div className="ride-row" data-n={onDirections ? 3 : 2}>
         {onDirections && <button type="button" className="pill tap" onClick={onDirections}><Navigation size={18} aria-hidden /><span>{t(lang, "directions")}</span></button>}
-        <a className="pill pill-ride tap" href={ola} target="_blank" rel="noopener noreferrer" aria-label={t(lang, "rideOlaLabel")}><OlaLogo size={30} /></a>
-        <a className="pill pill-ride tap" href={uberLink(origin, dest)} target="_blank" rel="noopener noreferrer" aria-label={t(lang, "rideUberLabel")}><UberLogo height={18} /></a>
+        <a className="pill pill-ride tap" href={ola} target="_blank" rel="noopener noreferrer" aria-label={t(lang, "rideOlaLabel")}><OlaLogo height={26} /></a>
+        <a className="pill pill-ride tap" href={uberLink(origin, dest)} target="_blank" rel="noopener noreferrer" aria-label={t(lang, "rideUberLabel")}><UberLogo height={22} /></a>
       </div>
       <p className="tiny ride-note">{t(lang, "rideNote")}</p>
     </>
