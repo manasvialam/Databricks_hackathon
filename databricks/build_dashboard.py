@@ -14,8 +14,8 @@ import run_sql
 WH = "cf80af6a5a0a8799"
 T = "workspace.facility_finder"
 F, O, R = f"{T}.v_eda_fac", f"{T}.v_eda_offices", f"{T}.v_eda_registry"
-OLD_DASHBOARD = os.environ.get("OLD_DASHBOARD_ID", "01f1e62c1e3610448245006fa6b812a7")
-TITLE = "Facility finder: EDA, maps and evidence"
+OLD_DASHBOARD = os.environ.get("OLD_DASHBOARD_ID", "01f1e6488ec31e24bbb7f6e3ca8cb62d")
+TITLE = "Facility finder: EDA, maps and care deserts (v2)"
 TYPE3 = "CASE WHEN {c} IN ('hospital','clinic','dentist') THEN {c} ELSE 'other' END"
 
 C_TYPE = {"hospital": "#D1495B", "clinic": "#2E86AB", "dentist": "#3FA34D", "other": "#E8A33D", "India Post office": "#C9CED6"}
@@ -310,6 +310,95 @@ page("registry", "Registry", [
     (hist("hi_regkm", "reg_km", "km", 5, "Distance between the two records of a verified match (km, capped at 100)"), 0, 27, 3, 9),
     (bar("b_regtrust", "reg_trust", "registry", "avg_facility_trust", "Average facility trust: verified against not verified"), 3, 27, 3, 9),
 ])
+
+
+import dashboard_extra as X
+
+DATASETS.update(X.DATASETS)
+SVC_LABELS = X.SERVICES6
+ratio_order = order_of("rg_ratio", "state_name")
+rgdist_order = order_of("rg_district", "district")
+gap_order = order_of("ns_gap", "district_label")
+cdd_order = order_of("cd_worst_dialysis", "district")
+cdc_order = order_of("cd_worst_cath", "district")
+div_order = order_of("tr_diversity", "state_name")
+RAMP_BP = {"mode": "scheme", "scheme": "plasma"}
+
+page("care", "Care deserts", [
+    (text("t_cd", ["## Where would a person have to travel far for care?\n", "\n",
+                   "Each dot is an India Post office (about one in eight; a proxy for where people live), coloured by the straight-line distance to the nearest facility in our data with Strong or Moderate "
+                   "evidence for the service. Black dots are those facilities. \"Over 100 km\" means nothing in our data within about 1.5 degrees. Our data holds 9,989 facilities, not every facility in India, "
+                   "so a desert here can also be a gap in the data.\n"]), 0, 0, 6, 4),
+    (geomap("m_cd_dia", "cd_dialysis", "Where a dialysis centre is more than 50 km away (orange and red)", colors=X.C_BUCKET), 0, 4, 3, 12),
+    (geomap("m_cd_cath", "cd_cath", "Where a cath lab (heart attack care) is more than 50 km away", colors=X.C_BUCKET), 3, 4, 3, 12),
+    (geomap("m_cd_nicu", "cd_nicu", "Where newborn intensive care (NICU) is more than 50 km away", colors=X.C_BUCKET), 0, 16, 3, 12),
+    (geomap("m_cd_trauma", "cd_trauma", "Where emergency and trauma care is more than 50 km away", colors=X.C_BUCKET), 3, 16, 3, 12),
+    (bar("b_cd_share", "cd_share", "service", "n", "Share of post offices by distance to the nearest facility with each service", color="bucket", colors=X.C_BUCKET, layout="stack-100"), 0, 28, 3, 10),
+    (heat("h_cd_state", "cd_state", "service", "state_name", "pct_over_50km", "Percent of post offices more than 50 km from each service, by state", scheme="YlOrRd", xorder=X.SERVICES6), 3, 28, 3, 10),
+    (bar("b_cd_wdia", "cd_worst_dialysis", "district", "mean_km", "Districts farthest from a dialysis centre (average km, 150 = none in our data)", horizontal=True, order=cdd_order), 0, 38, 3, 10),
+    (bar("b_cd_wcath", "cd_worst_cath", "district", "mean_km", "Districts farthest from a cath lab (average km)", horizontal=True, order=cdc_order), 3, 38, 3, 10),
+    (hist("hi_cd", "cd_hist", "km", 10, "How far is the nearest dialysis centre from a post office? (km, 150 = none in our data)"), 0, 48, 3, 9),
+    (text("t_cd2", ["### What this shows\n", "\n",
+                    "In our data about 61% of post offices are more than 50 km from a NICU, 51% from a cath lab, 42% from a dialysis centre and 19% from emergency and trauma care. "
+                    "Odisha and Chhattisgarh districts such as Nabarangpur, Dantewada and Rayagada have no dialysis centre or cath lab in our data within about 150 km. "
+                    "Check these against the PM-JAY list on the Registry gap page before concluding that no care exists there.\n"]), 3, 48, 3, 9),
+])
+
+page("need", "Need vs supply", [
+    (text("t_ns", ["## Do the places that need care most have the capacity?\n", "\n",
+                   "NFHS-5 district indicators (raised blood pressure, blood sugar, tobacco use, anaemia, births, insurance) against facilities in our data with Strong or Moderate evidence per 100 India Post offices "
+                   "(a rough population proxy). Every chart here is a district-level association from survey averages. It says nothing about any one person's risk, and it cannot show cause.\n"]), 0, 0, 6, 4),
+    (geomap("m_ns_bp", "ns_map_bp", "Raised blood pressure in women (colour) and cath labs (bubble size), by district", color_field="bp_women_pct", ramp=RAMP_BP), 0, 4, 3, 12),
+    (geomap("m_ns_an", "ns_map_anaemia", "Anaemia in women (colour) and NICUs (bubble size), by district", color_field="anaemia_women_pct", ramp=RAMP_BP), 3, 4, 3, 12),
+    (scatter("s_ns1", "ns_bp_cath", "bp_women_pct", "cath_per_100_offices", "Raised blood pressure in women against cath labs per 100 post offices (one dot per district)", size="offices", detail="district_label"), 0, 16, 3, 10),
+    (scatter("s_ns2", "ns_tob_onc", "tobacco_men_pct", "onc_per_100_offices", "Tobacco use in men against cancer care per 100 post offices", size="offices", detail="district_label"), 3, 16, 3, 10),
+    (scatter("s_ns3", "ns_anaemia_nicu", "anaemia_women_pct", "nicu_per_100_offices", "Anaemia in women against NICUs per 100 post offices", size="offices", detail="district_label"), 0, 26, 3, 10),
+    (scatter("s_ns4", "ns_ins_pmjay", "insurance_pct", "pmjay_per_100_offices", "Households with health insurance against PM-JAY verified hospitals per 100 post offices", size="offices", detail="district_label"), 3, 26, 3, 10),
+    (bar("b_ns_gap", "ns_gap", "district_label", "need_index", "High-need districts with no cath lab and no dialysis centre in our data (need index 0 to 100)", horizontal=True, order=gap_order), 0, 36, 3, 10),
+    (heat("h_ns_corr", "ns_corr", "supply", "need", "r", "How district need and supply move together (Pearson r; blue = supply rises with need)", scheme="RdYlBu", xorder=X.SUPPLY_ORDER, yorder=X.NEED_ORDER[::-1]), 3, 36, 3, 10),
+    (text("t_ns2", ["### What this shows\n", "\n",
+                    "Supply in our data does not follow need. Across districts, tobacco use among men is slightly negatively correlated with cath labs (r = -0.23) and raised blood pressure "
+                    "with cath labs only weakly positive (r = 0.16). Facilities in our data cluster in and around cities, so a district can have high need and almost no recorded capacity. "
+                    "The need index averages the district's rank on blood pressure, blood sugar, tobacco use and anaemia.\n"]), 0, 46, 6, 4),
+])
+
+page("trust", "Trust story", [
+    (text("t_tr", ["## What makes a record trustworthy?\n", "\n",
+                   "Facility trust (0 to 100) blends how many independent sources describe a facility, how recent its page is, whether its location and contacts check out, and whether the record may mix facilities. "
+                   "These charts ask which signals move the score, and where the data itself looks implausible.\n"]), 0, 0, 6, 4),
+    (bar("b_tr_age", "tr_recency", "page_age", "avg_trust", "Older web pages, lower trust (average facility trust by age of the facility's page)"), 0, 4, 2, 9),
+    (bar("b_tr_dom", "tr_domains", "independent_sources", "avg_trust", "More independent sources, higher trust (6 = six or more)"), 2, 4, 2, 9),
+    (bar("b_tr_soc", "tr_social", "social_platforms", "avg_trust", "Social media presence and trust (platforms, 5 = five or more)"), 4, 4, 2, 9),
+    (scatter("s_tr_beds", "tr_beds", "beds", "doctors", "Doctors against beds: red dots break plausibility checks (one doctor with hundreds of beds, extreme counts)", color="category", colors=X.C_FLAG), 0, 13, 3, 11),
+    (scatter("s_tr_claim", "tr_claim", "facility_trust", "avg_claim_strength", "Average claim strength against facility trust, records that may mix facilities in red", color="category", colors=X.C_MERGE), 3, 13, 3, 11),
+    (bar("b_tr_sm", "tr_strong_merge", "level", "n", "How much of each evidence level sits on records that may mix facilities", color="kind", layout="stack-100"), 0, 24, 3, 9),
+    (bar("b_tr_op", "tr_operator", "operator", "avg_trust", "Average facility trust by operator type"), 3, 24, 3, 9),
+    (bar("b_tr_dec", "tr_decade", "decade", "n", "When facilities were established, by decade and type", color="facility_type", colors=C_TYPE), 0, 33, 3, 9),
+    (bar("b_tr_city", "tr_city24", "city_size", "pct_24x7", "Hospitals in bigger cities are no more likely to be open 24 hours (by number of facilities in the city)"), 3, 33, 3, 9),
+    (bar("b_tr_div", "tr_diversity", "state_name", "avg_specialties", "Specialty breadth: average specialties listed per hospital, top 15 states (30+ hospitals)", horizontal=True, order=div_order), 0, 42, 3, 10),
+    (text("t_tr2", ["### What this shows\n", "\n",
+                    "Records with only one independent source average a trust of 54, against 71 with five. Pages not updated for three years or more average 61, against 71 for pages updated within a year. "
+                    "About one in ten Strong claims (1,022 of 10,357) sits on a record that may mix several facilities, so a Strong label is not proof the service is at one particular address. "
+                    "Most records (6,454) carry no usable page date.\n"]), 3, 42, 3, 10),
+])
+
+page("gap", "Registry gap", [
+    (text("t_gap", ["## What does the national PM-JAY list hold that our data does not?\n", "\n",
+                    "All 39,737 hospitals empanelled under PM-JAY (from hem_hospitals.csv, now in Delta) against the 1,452 we could verify in our data. A hospital missing from our data is not a missing hospital: "
+                    "it is a place where our evidence cannot yet help, and where the list could add candidates.\n"]), 0, 0, 6, 4),
+    (geomap("m_gap", "rg_map", "The coverage gap: empanelled hospitals in our data (blue) and not in it (purple government, orange private; half shown)", colors=X.C_GAP), 0, 4, 3, 13),
+    (bar("b_gap_state", "rg_state", "state_name", "n", "Empanelled hospitals against those we hold, top 15 states", color="kind", layout="group"), 3, 4, 3, 13),
+    (bar("b_gap_ratio", "rg_ratio", "state_name", "pct_in_our_data", "Share of each state's empanelled hospitals that are in our data (400+ empanelled)", horizontal=True, order=ratio_order), 0, 17, 3, 11),
+    (bar("b_gap_dist", "rg_district", "district", "not_in_our_data", "Districts where the list holds the most hospitals we do not", horizontal=True, order=rgdist_order), 3, 17, 3, 11),
+    (bar("b_gap_share", "rg_share", "source", "n", "Government against private: the list, our verified matches, and all our facilities", color="ownership", colors=X.C_OWNER, layout="stack-100"), 0, 28, 3, 9),
+    (text("t_gap2", ["### What this shows\n", "\n",
+                     "Only about 4% of empanelled hospitals appear in our data, and the share is lowest in Karnataka (1.4%), Telangana (1.8%), Chhattisgarh and Odisha (2.2%). "
+                     "The list is about half government hospitals (20,842 of 39,737) while our verified matches are 93% private (1,350 of 1,452): the public system is the biggest hole in our data. "
+                     "Pune, Jaipur and Lucknow each have over 300 empanelled hospitals we do not hold.\n"]), 3, 28, 3, 9),
+])
+
+_order = ["overview", "maps", "care", "need", "services", "quality", "trust", "registry", "gap"]
+PAGES.sort(key=lambda p: _order.index(p["name"]))
 
 
 def main():

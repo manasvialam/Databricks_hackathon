@@ -64,6 +64,7 @@ export function App() {
 
   const said = thread.find((m) => m.role === "user")?.text ?? null;      // the first thing the person said: used on the hospital card
   const history = useRef<string[]>([]);
+  const asked = useRef(0);                      // follow-up questions asked in this conversation: at most 2
   const need = useRef<string | null>(null);
   const [confirm, setConfirm] = useState<{ loc: Loc; text: string; place: string } | null>(null);
   const [askText, setAskText] = useState<string | null>(null);
@@ -228,7 +229,7 @@ export function App() {
       const detected: Loc | null = !at && r.location ? { lat: r.location.lat, lon: r.location.lon, label: r.location.matched } : null;
       let services = tr.emergency && !tr.services.length ? tr.emergency.services.slice(0, 2) : tr.services;
       const urgency: Urgency = tr.emergency ? "emergency" : tr.urgency;
-      const follow = tr.emergency ? null : tr.followUps[0] ?? null;
+      const follow = tr.emergency || asked.current >= 2 ? null : tr.followUps[0] ?? null;
 
       // Keep the hospital unless what was added needs a kind of care it does not have.
       if (cur && !tr.emergency && !g) {
@@ -238,12 +239,12 @@ export function App() {
           try { solid = (await api<{ services: ServiceId[] }>("/api/covers", { id: cur.id })).services; } catch { /* decide with what we have */ }
         }
         const missing = services.filter((s) => !cur.services.includes(s) && !solid.includes(s));
-        if (!missing.length) { if (follow) addAssistant(follow); else addAssistant(t(lang, "stillFits"), true); return; }
+        if (!missing.length) { if (follow) { addAssistant(follow); asked.current++; } else addAssistant(t(lang, "stillFits"), true); return; }
         addAssistant(t(lang, "switchedCare"), true);
         if (viewRef.current === "result") services = [...new Set([...services, ...cur.services])].slice(0, 4);   // the new search keeps the care already asked for
         setRec(null); setView("loading");
       }
-      if (follow) addAssistant(follow);
+      if (follow) { addAssistant(follow); asked.current++; }
 
       if (detected) {
         if (urgency === "emergency") { at = detected; setLoc(at); }
@@ -261,7 +262,7 @@ export function App() {
 
   // back on the home screen the conversation starts over
   useEffect(() => {
-    if (view === "idle" && !gate) { setThread([]); setThinking(false); history.current = []; need.current = null; }
+    if (view === "idle" && !gate) { setThread([]); setThinking(false); history.current = []; need.current = null; asked.current = 0; }
   }, [view, gate]);
 
   const toggleMic = useCallback(() => {

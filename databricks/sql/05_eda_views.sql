@@ -20,12 +20,14 @@ AS SELECT
 FROM workspace.facility_finder.fac_final
 ;;
 CREATE OR REPLACE VIEW workspace.facility_finder.v_eda_offices
-COMMENT 'About one in eight India Post offices (every office would be 150k points) with coordinates inside India, from the shared pincode directory. The grey background layer of the maps.'
-AS SELECT officename, pincode, statename AS state, district,
-  try_cast(latitude AS DOUBLE) AS lat, try_cast(longitude AS DOUBLE) AS lon
-FROM databricks_virtue_foundation_dataset_dais_2026.virtue_foundation_dataset.india_post_pincode_directory
-WHERE try_cast(latitude AS DOUBLE) BETWEEN 6 AND 37.5 AND try_cast(longitude AS DOUBLE) BETWEEN 68 AND 97.5
-  AND abs(hash(pincode, officename)) % 8 = 0
+COMMENT 'About one in eight India Post offices (every office would be 150k points) with coordinates inside India, from the shared pincode directory. The grey background layer of the maps. Offices on a latitude shared by 100+ offices across 30+ different longitudes (a junk band at 15.593) are dropped.'
+AS WITH o AS (
+  SELECT officename, pincode, statename AS state, district, try_cast(latitude AS DOUBLE) AS lat, try_cast(longitude AS DOUBLE) AS lon
+  FROM databricks_virtue_foundation_dataset_dais_2026.virtue_foundation_dataset.india_post_pincode_directory
+  WHERE try_cast(latitude AS DOUBLE) BETWEEN 6 AND 37.5 AND try_cast(longitude AS DOUBLE) BETWEEN 68 AND 97.5),
+junk AS (SELECT round(lat, 3) AS la FROM o GROUP BY round(lat, 3) HAVING count(*) >= 100 AND count(DISTINCT round(lon, 1)) >= 30)
+SELECT officename, pincode, state, district, lat, lon FROM o
+WHERE round(lat, 3) NOT IN (SELECT la FROM junk) AND abs(hash(pincode, officename)) % 8 = 0
 ;;
 CREATE OR REPLACE VIEW workspace.facility_finder.v_eda_registry
 COMMENT 'Facilities with their PM-JAY registry match (tier, ownership, NABH, distance between the two records).'
