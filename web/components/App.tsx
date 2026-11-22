@@ -246,6 +246,7 @@ export function App() {
     if (!msg) return;
     viaVoice.current = voice; setVoiceThinking(voice);
     stopSpeaking(); ra.stop();
+    if (viewRef.current === "idle" && !gateRef.current) newConversation();       // a message sent from the home screen starts a new conversation
     const cur = currentChoice();                       // a hospital is already on screen: this message continues the conversation
     setThread((th) => [...th, { role: "user", text: msg }]);
     setText(""); setCaption(""); setCareNote(null); setErrMsg(null); setNotice(null);
@@ -301,10 +302,8 @@ export function App() {
     }
   }, [fetchRec, online, lang, askConfirm, loadAsk]);
 
-  // back on the home screen the conversation starts over
-  useEffect(() => {
-    if (view === "idle" && !gate) { setThread([]); setThinking(false); history.current = []; need.current = null; asked.current = 0; stayNoted.current = false; }
-  }, [view, gate]);
+  const gateRef = useRef(gate); gateRef.current = gate;
+  const newConversation = () => { setThread([]); setThinking(false); history.current = []; need.current = null; asked.current = 0; stayNoted.current = false; };
 
   const toggleMic = useCallback(() => {
     if (listening) { listener.current?.stop(); return; }
@@ -607,7 +606,11 @@ export function App() {
       )}
       {composer && (
         <div className="dock glass">
-          <button type="button" className="dock-btn tap" onClick={newSearch}><Search size={19} aria-hidden /><span>{t(lang, "newSearch")}</span></button>
+          <button type="button" className="dock-btn dock-icon tap" onClick={newSearch} aria-label={t(lang, "newSearch")} title={t(lang, "newSearch")}><Search size={19} aria-hidden /></button>
+          <form className="dock-form" onSubmit={(e) => { e.preventDefault(); void run(text); }}>
+            <input value={text} onChange={(e) => setText(e.target.value)} placeholder={t(lang, "followPh")} aria-label={t(lang, "followPh")} enterKeyHint="send" autoComplete="off" />
+            {text.trim() && <button type="submit" className="dock-send tap" aria-label={t(lang, "send")}><ArrowUp size={18} strokeWidth={2.4} aria-hidden /></button>}
+          </form>
           {canMic && <MicButton state={voiceState} label={voiceState === "idle" ? t(lang, "mic") : voiceState === "listening" ? t(lang, "listening") : voiceState === "speaking" ? t(lang, "stop") : t(lang, "thinking")}
             onClick={() => (voiceState === "speaking" || voiceState === "thinking" ? stopVoice() : toggleMic())} />}
         </div>
