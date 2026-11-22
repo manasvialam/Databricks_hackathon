@@ -165,7 +165,7 @@ sequenceDiagram
     B->>S: message and recent conversation
     S->>S: emergency gate again
     S->>M: extract urgency, care needed, short problem phrase
-    M-->>S: JSON (validated; rules used if it fails)
+    M-->>S: JSON (validated, rules used if it fails)
     S-->>B: urgency, services, follow-up question, place hint
     B->>S: recommend (services, urgency, location, preferences)
     S->>D: candidates within 25 to 200 km
