@@ -16,7 +16,7 @@ import type {
 } from "./types";
 import { TAU_MINUTES, normalise, effectivePreferences } from "./preferences";
 import type { CardStatus } from "./preferences";
-import { msg, t, type Msg, type MsgKey, type Vars } from "./i18n";
+import { msg, svcLabel, t, trustDetail, type Msg, type MsgKey, type Vars } from "./i18n";
 
 const LEVEL_TERM: Record<ClaimLevel, MsgKey> = {
   Strong: "whyStrong", Moderate: "whyModerate", Inferred: "whyInferred", Weak: "whyWeak", Contradicted: "whyContradicted",
@@ -56,6 +56,10 @@ const LOCATION_SIGMA_KM: Record<string, number> = {
 };
 const SIZE_COMFORT: Record<string, number> = { small: 0.2, medium: 0.5, large: 0.8, xlarge: 1 };
 
+const siteOf = (u: string): string => { try { return new URL(/^https?:/i.test(u) ? u : `https://${u}`).hostname.replace(/^www\./, ""); } catch { return ""; } };
+/** Up to three distinct sites, in the order given. */
+const sites = (us: { u: string }[]): string[] => Array.from(new Set(us.map((x) => siteOf(x.u)).filter(Boolean))).slice(0, 3);
+
 // ---------- evidence ------------------------------------------------------------------------------------------------
 export function claimFor(f: Facility, service: string): Claim | null {
   return f.cl.find((c) => c.s === service) ?? null;
@@ -67,24 +71,35 @@ export function serviceLogOdds(f: Facility, service: string): { p: number; terms
   const level: ClaimLevel | "none" = c ? c.l : "none";
   // every term carries a message key so the interface can explain it in the person's language (lib/i18n)
   const baseKey: MsgKey = c ? LEVEL_TERM[level as ClaimLevel] : "whyNone";
-  const terms: Contribution[] = [{ label: t("en", baseKey), delta: logit(W.prior[level]), k: baseKey }];
+  const svcEn = svcLabel(service, "en");
+  const terms: Contribution[] = [{
+    label: t("en", baseKey, { svc: svcEn }), delta: logit(W.prior[level]), k: baseKey, v: { svc: service },
+    ...(c && sites(c.u).length ? { detail: t("en", "whyBaseDetail", { list: sites(c.u).join(", ") }), dk: "whyBaseDetail" as MsgKey, dv: { list: sites(c.u).join(", ") } } : {}),
+  }];
   let total = terms[0].delta;
-  const add = (k: MsgKey, delta: number, detail?: { text: string; dk?: MsgKey; dv?: Vars }) => {
+  // `v` holds the plain values (the service id stays an id so the interface can name it in the person's language)
+  const add = (k: MsgKey, delta: number, detail?: { text: string; dk?: MsgKey; dv?: Vars }, v?: Vars) => {
     if (!delta) return;
-    terms.push({ label: t("en", k), delta, k, ...(detail ? { detail: detail.text, dk: detail.dk, dv: detail.dv } : {}) });
+    const en = v ? { ...v, ...(v.svc ? { svc: svcEn } : {}) } : undefined;
+    terms.push({ label: t("en", k, en), delta, k, ...(v ? { v } : {}), ...(detail ? { detail: detail.text, dk: detail.dk, dv: detail.dv } : {}) });
     total += delta;
   };
   const keyed = (dk: MsgKey, dv: Vars) => ({ text: t("en", dk, dv), dk, dv });
 
   if (c) {
-    add("whyFields", Math.min(W.extraFieldCap, W.perExtraField * Math.max(0, c.nf - 1)), keyed("whyFieldsDetail", { n: c.nf, list: c.f.join(", ") }));
+    add("whyFields", Math.min(W.extraFieldCap, W.perExtraField * Math.max(0, c.nf - 1)), keyed("whyFieldsDetail", { n: c.nf, list: c.f.join(", ") }), { svc: service, n: c.nf });
     if (c.sp) add("whySpecific", W.specificity);
     if (!c.pm) add("whyPrereq", W.prerequisitesMissing);
     if (c.ct.length) add("whyContra", Math.max(W.contradictionCap, W.perContradiction * c.ct.length), { text: c.ct[0] });   // data text, English only
     const named = c.u.filter((u) => u.n).length;
-    if (named) add("whyNamed", Math.min(W.citationCap, W.perNamedCitation * named));
+    if (named) add("whyNamed", Math.min(W.citationCap, W.perNamedCitation * named), undefined, { list: sites(c.u.filter((u) => u.n)).join(", ") });
   }
-  if (f.ft != null) add("whyTrust", ((f.ft - 70) / 100) * W.trustScale, keyed("whyTrustDetail", { n: f.ft }));
+  if (f.ft != null) {
+    // say what the score rests on, using only facts we hold about this facility
+    const parts = [f.lt === "verified" ? "trustLocOk" : f.lt === "verified_osm" ? "trustLocOsm" : f.lt === "probable" ? "trustLocProbable" : "", f.ph.length ? "trustPhone" : "", f.ws ? "trustSite" : ""].filter(Boolean);
+    const dv: Vars = { n: f.ft, parts: parts.join(","), site: f.ws ? siteOf(f.ws) : "" };
+    add("whyTrust", ((f.ft - 70) / 100) * W.trustScale, { text: trustDetail(dv, "en"), dk: "whyTrustDetail", dv });
+  }
   if (f.ms) add("whyMerge", W.perMergeSuspect * f.ms, keyed("whyMergeDetail", { n: f.ms }));
 
   // registry evidence, capped as a group
@@ -103,8 +118,8 @@ export function serviceLogOdds(f: Facility, service: string): { p: number; terms
   for (const r of regTerms) add(r.k, r.delta * scale);
 
   if (f.wd) add("whyWikidata", W.wikidata);
-  if (f.rt === "moderate") add("whyRecogModerate", W.recognitionModerate);
-  if (f.rt === "high") add("whyRecogHigh", W.recognitionHigh);
+  if (f.rt === "moderate") add("whyRecogModerate", W.recognitionModerate, keyed("whyRecogDetail", {}));
+  if (f.rt === "high") add("whyRecogHigh", W.recognitionHigh, keyed("whyRecogDetail", {}));
 
   terms.sort((a, b) => Math.abs(b.delta) - Math.abs(a.delta));
   return { p: sigmoid(total), terms };

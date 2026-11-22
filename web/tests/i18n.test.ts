@@ -74,8 +74,11 @@ describe("what the server sends can be shown in every language", () => {
     expect(say(m, "hi")).not.toBe(m.text);
   });
   it("translates the record fields named in 'How we decided'", () => {
-    const c = { label: "Several fields agree", delta: 0.5, k: "whyFields" as MsgKey, detail: "2 fields: procedure, equipment", dk: "whyFieldsDetail" as MsgKey, dv: { n: 2, list: "procedure, equipment" } };
-    expect(termText(c, "en").detail).toBe("2 fields: procedure, equipment");
-    expect(termText(c, "ta").detail).toBe(`2 ${"பகுதிகள்"}: ${t("ta", "fieldProcedure")}, ${t("ta", "fieldEquipment")}`);
+    const c = { label: "Intensive care appears in 2 parts of their listing", delta: 0.5, k: "whyFields" as MsgKey, v: { svc: "icu", n: 2 }, detail: "procedure, equipment", dk: "whyFieldsDetail" as MsgKey, dv: { n: 2, list: "procedure, equipment" } };
+    expect(termText(c, "en").detail).toBe("procedure, equipment");
+    expect(termText(c, "ta").detail).toBe(`${t("ta", "fieldProcedure")}, ${t("ta", "fieldEquipment")}`);
+    // the service is named in the person's language, the count is kept
+    expect(termText(c, "ta").label).toContain("2");
+    expect(termText(c, "ta").label).not.toContain("{");
   });
 });

@@ -85,6 +85,12 @@ export const dataMsg = (k: MsgKey, text: string): Msg => ({ k, text });
 /** A server message in the person's language. English keeps the original text (which may be more specific). */
 export const say = (m: Msg, lang: Lang): string => (lang === "en" ? m.text : t(lang, m.k, m.v));
 
+/** "90 out of 100. Based on: address matches its PIN code, phone number on file, own website (x.org)": parts are message keys so each can be translated. */
+export function trustDetail(dv: Vars, lang: Lang): string {
+  const parts = String(dv.parts ?? "").split(",").filter(Boolean).map((k) => t(lang, k as MsgKey, { site: String(dv.site ?? "") }));
+  return parts.length ? t(lang, "whyTrustDetail", { n: dv.n ?? "", list: parts.join(", ") }) : t(lang, "whyTrustNoParts", { n: dv.n ?? "" });
+}
+
 /** One line of "How we decided" in the person's language. A detail that only exists in English is dropped. */
 export function termText(c: Contribution, lang: Lang): { label: string; detail: string | null } {
   if (lang === "en" || !c.k) return { label: c.label, detail: c.detail ?? null };
@@ -92,6 +98,8 @@ export function termText(c: Contribution, lang: Lang): { label: string; detail: 
   if (c.dk === "whyFieldsDetail" && c.dv) {
     const list = String(c.dv.list ?? "").split(", ").filter(Boolean).map((f) => fieldLabel(f, lang)).join(", ");
     detail = t(lang, "whyFieldsDetail", { ...c.dv, list });
-  } else if (c.dk) detail = t(lang, c.dk, c.dv);
-  return { label: t(lang, c.k, c.v), detail };
+  } else if (c.dk === "whyTrustDetail" && c.dv) detail = trustDetail(c.dv, lang);
+  else if (c.dk) detail = t(lang, c.dk, c.dv);
+  const v = c.v && c.v.svc ? { ...c.v, svc: svcLabel(String(c.v.svc), lang) } : c.v;
+  return { label: t(lang, c.k, v), detail };
 }

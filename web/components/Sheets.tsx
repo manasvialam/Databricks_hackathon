@@ -1,6 +1,6 @@
 "use client";
 import { useCallback, useEffect, useRef, useState } from "react";
-import { BadgeCheck, Check, Clock, ExternalLink, LocateFixed, MapPin, Minus, Navigation, Phone, Plus, Search, ShieldQuestion, Volume2, X } from "lucide-react";
+import { BadgeCheck, Check, CircleCheck, Clock, ExternalLink, LocateFixed, MapPin, Minus, Navigation, Phone, Plus, Search, ShieldQuestion, Volume2, X } from "lucide-react";
 import type { ResultDto } from "@/lib/recommend";
 import type { RedFlagResult } from "@/lib/triage/redflags";
 import type { Contribution, Preferences } from "@/lib/types";
@@ -82,10 +82,28 @@ function Term({ c, lang }: { c: Contribution; lang: Lang }) {
   const { label, detail } = termText(c, lang);
   // free text with no message key (the model's one-line reason, a data contradiction) is English: translate it
   const free = lang !== "en" && !c.dk && c.detail ? c.detail : null;
-  return <span>{label}{free ? <>. <TxText text={free} lang={lang} /></> : detail ? `. ${detail}` : ""}</span>;
+  return <span className="why-t">{label}{free ? <small className="why-d"><TxText text={free} lang={lang} /></small> : detail ? <small className="why-d">{detail}</small> : null}</span>;
 }
 
 const host = (u: string) => { try { return new URL(u).hostname.replace(/^www\./, ""); } catch { return u; } };
+
+/** Hold-up-to-the-desk view: the sentence to say, big and in English (what the staff read), the same in the person's language, and what to bring. */
+export function DoorSheet({ r, lang, serviceId, onClose, onListen }: { r: ResultDto; lang: Lang; serviceId: string; onClose: () => void; onListen?: () => void }) {
+  const need = svcLabel(serviceId, "en");
+  return (
+    <Sheet title={t(lang, "showAtDoor")} onClose={onClose} lang={lang} onListen={onListen}>
+      <div className="door-big">
+        <small lang="en">{r.name}</small>
+        <p lang="en">{t("en", "sayLine", { service: need })}</p>
+        {lang !== "en" && <p className="door-own" lang={lang}>{t(lang, "sayLine", { service: svcLabel(serviceId, lang) })}</p>}
+      </div>
+      <div className="block" style={{ marginTop: 20 }}>
+        <h3 className="block-h">{t(lang, "carry")}</h3>
+        <ul className="door-list">{t(lang, "carryItems").split("|").map((x) => <li key={x}><CircleCheck size={20} aria-hidden /><span>{x}</span></li>)}</ul>
+      </div>
+    </Sheet>
+  );
+}
 
 export function WhySheet({ r, lang, onClose, trafficNote, context = [], onListen }: { r: ResultDto; lang: Lang; onClose: () => void; trafficNote: Msg; context?: Msg[]; onListen?: () => void }) {
   const pct = Math.round(r.pBest * 100);
@@ -94,40 +112,40 @@ export function WhySheet({ r, lang, onClose, trafficNote, context = [], onListen
   const src = ev?.sources[0];
   return (
     <Sheet title={t(lang, "whyThis")} onClose={onClose} lang={lang} onListen={onListen}>
-      <p className="muted">{t(lang, "whyIntro")}</p>
-      <div style={{ marginTop: 14 }}>
-        <div className="big-pct">{pct}<small>%</small></div>
-        <div className="bar" aria-hidden><i style={{ width: `${pct}%` }} /></div>
+      <div className="why-hero">
+        <p className="why-name"><Name text={r.name} lang={lang} /></p>
+        <div className="why-row">
+          <div className="why-pct">{pct}<small>%</small></div>
+          <p className="why-intro">{t(lang, "whyIntro")}</p>
+        </div>
+        <div className="why-bar" aria-hidden><i style={{ width: `${pct}%` }} /></div>
       </div>
       {quote && (
-        <div className="block">
-          <h3 className="block-h">{t(lang, "theySay")}</h3>
+        <section className="why-sec">
+          <h3 className="why-h">{t(lang, "theySay")}</h3>
           {/* the facility's own text, cited verbatim, so it stays in the language it was written in */}
-          <blockquote className="quote" lang="en">“{quote.text.length > 300 ? quote.text.slice(0, 297) + "…" : quote.text}”</blockquote>
-          {src && <p className="src"><a href={src.url} target="_blank" rel="noopener noreferrer">{t(lang, "source")}: <span lang="en">{host(src.url)}</span><ExternalLink size={12} aria-hidden /></a>{!src.namesFacility && <span className="tiny"> ({t(lang, "srcNotNamed")})</span>}</p>}
-        </div>
+          <blockquote className="why-quote" lang="en">“{quote.text.length > 300 ? quote.text.slice(0, 297) + "…" : quote.text}”</blockquote>
+          {src && (
+            <p className="why-src">
+              <a href={src.url} target="_blank" rel="noopener noreferrer">{t(lang, "source")}: <span lang="en">{host(src.url)}</span><ExternalLink size={13} aria-hidden /></a>
+              {!src.namesFacility && <span> {t(lang, "srcNotNamed")}</span>}
+            </p>
+          )}
+        </section>
       )}
-      <div className="block">
-        <h3 className="block-h">{t(lang, "positives")}</h3>
+      <section className="why-sec">
+        <h3 className="why-h">{t(lang, "positives")}</h3>
         <ul className="why-list">
-          <li><span className="why-ico pos"><Plus size={14} strokeWidth={2.5} aria-hidden /></span><Term c={r.why.baseline} lang={lang} /></li>
-          {r.why.positive.map((p) => <li key={p.label}><span className="why-ico pos"><Plus size={14} strokeWidth={2.5} aria-hidden /></span><Term c={p} lang={lang} /></li>)}
+          <li><span className="why-ico pos"><Check size={18} strokeWidth={2.4} aria-hidden /></span><Term c={r.why.baseline} lang={lang} /></li>
+          {r.why.positive.map((p) => <li key={p.label}><span className="why-ico pos"><Check size={18} strokeWidth={2.4} aria-hidden /></span><Term c={p} lang={lang} /></li>)}
         </ul>
-      </div>
+      </section>
       {r.why.negative.length > 0 && (
-        <div className="block">
-          <h3 className="block-h">{t(lang, "negatives")}</h3>
-          <ul className="why-list">{r.why.negative.map((p) => <li key={p.label}><span className="why-ico neg"><Minus size={14} strokeWidth={2.5} aria-hidden /></span><Term c={p} lang={lang} /></li>)}</ul>
-        </div>
+        <section className="why-sec">
+          <h3 className="why-h">{t(lang, "negatives")}</h3>
+          <ul className="why-list neg">{r.why.negative.map((p) => <li key={p.label}><span className="why-ico neg"><Minus size={18} strokeWidth={2.4} aria-hidden /></span><Term c={p} lang={lang} /></li>)}</ul>
+        </section>
       )}
-      <div className="block card-flat" style={{ display: "grid", gap: 8 }}>
-        {r.warnings.slice(1).map((w) => <p key={w.text} className="small"><Tx m={w} lang={lang} /></p>)}
-        {context.map((c) => <p key={c.text} className="small"><Tx m={c} lang={lang} /></p>)}
-        <p className="small"><Tx m={trafficNote} lang={lang} /></p>
-        {r.registry && <p className="small">{t(lang, "registryNote")}</p>}
-        <p className="small">{t(lang, "estimate")}</p>
-        <p className="small">{t(lang, "notAffiliated")}</p>
-      </div>
     </Sheet>
   );
 }
