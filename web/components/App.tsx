@@ -562,7 +562,7 @@ export function App() {
 
               <div className="quick" role="group" aria-label={t(lang, "pickCare")}>
                 {quick.map(({ id, icon: Icon, key }) => (
-                  <button key={id} type="button" className="quick-item tap" onClick={() => startService(id, id === "trauma_emergency" || id === "obstetrics")}>
+                  <button key={id} type="button" className="quick-item tap" onClick={() => startService(id, id === "trauma_emergency" || SERVICES.find((s) => s.id === id)?.urgentByNature === true)}>
                     <span className="quick-ico"><Icon size={24} strokeWidth={1.7} aria-hidden /></span>
                     <span className="quick-k">{t(lang, key)}</span>
                   </button>

@@ -233,7 +233,7 @@ export function rank(input: RankInput): RankResult {
   // When care is needed soon, being much slower than the fastest hospital that can do it is not made up for by being bigger, nicer or
   // cheaper: once a hospital has solid evidence for the service, time decides, and trust, comfort and cost only break ties between
   // hospitals about equally far. (Found when "pregnancy" ranked a hospital 52 minutes away above a solid one 20 minutes away.)
-  const guard = urgency === "emergency" ? { grace: 5, scale: 12 } : urgency === "urgent" ? { grace: 10, scale: 25 } : null;
+  const guard = urgency === "emergency" ? { grace: 5, scale: 12 } : urgency === "urgent" ? { grace: 10, scale: 25 } : { grace: 20, scale: 45 };  // routine: a gentler version, so a 50-minute trip never beats a 15-minute one on comfort alone
   const solidEtas = pre.filter((c) => c.per[0] && c.per[0].p >= W.solid).map((c) => c.eta?.minutes ?? (c.km * 1.4) / 0.6);
   const etaFastestSolid = solidEtas.length ? Math.min(...solidEtas) : Infinity;
 

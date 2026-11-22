@@ -156,8 +156,9 @@ describe("time decides among solid hospitals when care is needed soon", () => {
   it("emergency: even a modest extra delay loses", () => {
     expect(pick("emergency", 40)).toBe("Small near hospital");
   });
-  it("routine care is unchanged: the bigger hospital can win when nothing is urgent", () => {
-    expect(pick("routine", 52)).toBe("Big far hospital");
+  it("routine care is only gently time-guarded: a modest extra trip can go to the bigger hospital, a long one cannot", () => {
+    expect(pick("routine", 40)).toBe("Big far hospital");
+    expect(pick("routine", 80)).toBe("Small near hospital");
   });
   it("two hospitals about equally far are still told apart by trust, comfort and cost", () => {
     expect(pick("urgent", 24)).toBe("Big far hospital");
