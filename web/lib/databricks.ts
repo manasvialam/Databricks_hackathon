@@ -56,6 +56,7 @@ Return ONLY a JSON object with these keys:
 - followUps: up to 2 short questions, only if the answer would change where to go. Never ask where the person is or which city or area: the app asks for the place itself. Write them in ${LANGS.find((l) => l.id === lang)?.label ?? "English"}, in plain words.
 - location: a place named in the message, or null. If it is written in an Indian script, give its usual English spelling.
 - summary: one plain sentence in English
+- reason: the problem as a short English noun phrase of at most 8 words that the person could say after "I need to see a doctor about", for example "trouble sleeping", "swollen legs in pregnancy", "chest pain". Not a sentence, no "the patient", no first person.
 The message may be in English, Hindi, Tamil, Telugu or Malayalam, or a mix, in any script.
 Earlier turns of the conversation come first (the person's messages and your own follow-up questions). Read the last message in that context: if it only answers your question, combine both, and keep the same services unless the new information clearly changes which care is needed. summary and symptoms describe the whole conversation so far.
 Understand the meaning, not just keywords: "my father keeps getting breathless climbing stairs" and a word-for-word Hindi or Tamil version should give the same answer.

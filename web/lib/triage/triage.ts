@@ -15,6 +15,7 @@ export interface LlmExtraction {
   followUps: string[];
   location?: string | null;
   summary?: string;
+  reason?: string;                  // a short phrase for the sentence the person shows at the hospital door
   specialties?: string[];           // specialty category ids the need points to (lib/specialty.ts)
   adviceRequest?: boolean;          // asks for medicine, a dose, a diagnosis or a home remedy (the app gives none of these)
   careRequest?: boolean;            // false for a greeting, thanks or unrelated chat: the person has not asked for care
@@ -34,6 +35,7 @@ export interface TriageResult {
   specialties: string[];            // specialty categories the need points to, best first (model first, keyword match as fallback)
   advice: boolean;                  // the person asked for medicine, a dose, a diagnosis or a home remedy: say plainly that the app does not give those
   chat: boolean;                    // small talk: no symptom and no request for care, so no hospitals should be shown
+  reason: string | null;            // short English phrase for "I need to see a doctor about ..." (door sheet); null when the model gave none
   need: string | null;              // the model's plain-English restatement of the need, used to judge hospital fit
   source: "rules" | "llm+rules";
   note: string | null;
@@ -49,7 +51,7 @@ export function validateExtraction(x: unknown): LlmExtraction | null {
   const conds = Array.isArray(o.possibleConditions)
     ? o.possibleConditions.filter((c): c is Record<string, string> => !!c && typeof (c as Record<string, unknown>).name === "string").slice(0, 3).map((c) => ({ name: String(c.name).slice(0, 80), why: String(c.why ?? "").slice(0, 200) }))
     : [];
-  return { symptoms: arr(o.symptoms).slice(0, 8), urgency: urg, services: arr(o.services).filter(isServiceId), possibleConditions: conds, followUps: arr(o.followUps).slice(0, 2), location: typeof o.location === "string" ? o.location.slice(0, 80) : null, summary: typeof o.summary === "string" ? o.summary.slice(0, 300) : undefined, specialties: arr(o.specialties).filter(isSpecialtyId).slice(0, 3), careRequest: o.careRequest === false ? false : true, adviceRequest: o.adviceRequest === true };
+  return { symptoms: arr(o.symptoms).slice(0, 8), urgency: urg, services: arr(o.services).filter(isServiceId), possibleConditions: conds, followUps: arr(o.followUps).slice(0, 2), location: typeof o.location === "string" ? o.location.slice(0, 80) : null, summary: typeof o.summary === "string" ? o.summary.slice(0, 300) : undefined, reason: typeof o.reason === "string" && o.reason.trim() ? o.reason.trim().slice(0, 80) : undefined, specialties: arr(o.specialties).filter(isSpecialtyId).slice(0, 3), careRequest: o.careRequest === false ? false : true, adviceRequest: o.adviceRequest === true };
 }
 
 export { ASSISTANT_PREFIX };
@@ -60,7 +62,7 @@ export async function triage(text: string, opts: { history?: string[]; llm?: Llm
   const said = history.filter((h) => !h.startsWith(ASSISTANT_PREFIX));
   let emergency = checkRedFlags([...said.slice(-4), text].join(" . "));
   if (!emergency && isSmallTalk(text)) {
-    return { emergency: null, urgency: "routine", services: [], conditions: [], followUps: [], placeCandidates: [], understood: false, lowConfidence: false, specialties: [], chat: true, advice: false, need: null, source: "rules", note: null };
+    return { emergency: null, urgency: "routine", services: [], conditions: [], followUps: [], placeCandidates: [], understood: false, lowConfidence: false, specialties: [], chat: true, advice: false, need: null, reason: null, source: "rules", note: null };
   }
   const rules = matchNeeds(text);
   let llm: LlmExtraction | null = null;
@@ -100,6 +102,7 @@ export async function triage(text: string, opts: { history?: string[]; llm?: Llm
     placeCandidates: [...new Set(places)], understood: services.length > 0, lowConfidence: !!rules && rules.confidence === "low" && !llm,
     specialties,
     need: llm?.summary ?? null,
+    reason: llm?.reason ?? null,
     source: llm ? "llm+rules" : "rules",
     note: llm ? null : "Understood with built-in rules; the language model was not used for this message.",
   };

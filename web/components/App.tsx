@@ -89,6 +89,7 @@ export function App() {
   const stayNoted = useRef(false);               // "the emergency advice stays" is said once per conversation
   const asked = useRef(0);                      // follow-up questions asked in this conversation: at most 2
   const need = useRef<string | null>(null);
+  const door = useRef<string | null>(null);     // the short problem phrase shown on "Show at the door"
   const [confirm, setConfirm] = useState<{ loc: Loc; text: string; place: string } | null>(null);
   const [askText, setAskText] = useState<string | null>(null);
   const pending = useRef<{ services: ServiceId[]; urgency: Urgency } | null>(null);
@@ -270,12 +271,13 @@ export function App() {
     if (cur && !g) setThinking(true); else { setRec(null); setView("loading"); }
     try {
       const r = await api<{
-        triage: { emergency: RedFlagResult | null; urgency: Urgency; services: ServiceId[]; understood: boolean; followUps: string[]; note: string | null; need: string | null; specialties?: string[]; chat?: boolean; advice?: boolean };
+        triage: { emergency: RedFlagResult | null; urgency: Urgency; services: ServiceId[]; understood: boolean; followUps: string[]; note: string | null; need: string | null; reason?: string | null; specialties?: string[]; chat?: boolean; advice?: boolean };
         location: { lat: number; lon: number; matched: string } | null;
       }>("/api/triage", { message: msg, history: history.current.slice(0, -1), lang });
       const tr = r.triage;
       setThinking(false);
       need.current = tr.need ?? msg;
+      door.current = tr.reason ?? (tr.emergency?.categories[0]?.label ?? null);        // what to say at the door: a short phrase, never the whole spoken sentence
       if (tr.emergency) setGate(tr.emergency); else if (!g) setGate(null);
       let at = locRef.current;
       const detected: Loc | null = !at && r.location ? { lat: r.location.lat, lon: r.location.lon, label: r.location.matched } : null;
@@ -329,7 +331,7 @@ export function App() {
   }, [fetchRec, online, lang, askConfirm, loadAsk]);
 
   const gateRef = useRef(gate); gateRef.current = gate;
-  const newConversation = () => { setThread([]); setThinking(false); history.current = []; need.current = null; asked.current = 0; stayNoted.current = false; };
+  const newConversation = () => { setThread([]); setThinking(false); history.current = []; need.current = null; door.current = null; asked.current = 0; stayNoted.current = false; };
 
   const toggleMic = useCallback(() => {
     if (listening) { listener.current?.stop(); return; }
@@ -439,7 +441,7 @@ export function App() {
   };
   const openMap = (t: MapTarget) => { setMapTarget(t); setSheet("map"); };
   const startService = (id: ServiceId, urgent: boolean) => {
-    need.current = null; viaVoice.current = false;   // a tap is a new search: do not carry over what was typed before
+    need.current = null; door.current = null; viaVoice.current = false;   // a tap is a new search: do not carry over what was typed before
     const urgency: Urgency = urgent ? "urgent" : "routine";
     if (loc) void fetchRec([id], urgency, loc); else { pending.current = { services: [id], urgency }; loadAsk(); setView("needplace"); setSheet("loc"); }
   };
@@ -506,7 +508,7 @@ export function App() {
                 <p className="matched-for" data-read>{t(lang, "bestFor2", { what: needQuery!.sp.map((id) => specLabel(id, lang)).join(" · ") })}</p>
               )}
               {careNote && hMode === "need" && <p className="muted" style={{ padding: "0 6px" }}>{careNote}</p>}
-              <HospitalCard h={shownHospitals[sel]} lang={lang} origin={loc} need={hMode === "need" ? (need.current ?? said) : null} guidance={hMode === "need"} onWhy={() => setSheet("hwhy")}
+              <HospitalCard h={shownHospitals[sel]} lang={lang} origin={loc} need={hMode === "need" ? door.current : null} guidance={hMode === "need"} onWhy={() => setSheet("hwhy")}
                 onDirections={() => openMap({ name: shownHospitals[sel].name, lat: shownHospitals[sel].lat, lon: shownHospitals[sel].lon, fallbackKm: shownHospitals[sel].km })} />
               <div style={{ padding: "6px 6px 0" }}><h2 className="section-label" style={{ padding: 0 }}>{t(lang, "hospitalsNear")}</h2></div>
               <HospitalList hospitals={shownHospitals.filter((_, i) => i !== sel)} lang={lang} onOpen={openHospital} />
@@ -662,7 +664,7 @@ export function App() {
       {sheet === "map" && mapTarget && loc && <MapSheet origin={loc} dest={mapTarget} lang={lang} onClose={() => setSheet(null)} onListen={readSheet} />}
       {sheet === "lang" && <LangSheet lang={lang} onClose={() => setSheet(null)} onListen={readSheet} onPick={(l) => { chooseLang(l); setSheet(null); }} />}
       {sheet === "why" && picked && rec && <WhySheet r={picked} lang={lang} onClose={() => setSheet(null)} trafficNote={rec.traffic.note} context={rec.coverage.context} onListen={readSheet} />}
-      {sheet === "door" && picked && rec && <DoorSheet r={picked} lang={lang} serviceId={rec.services[0]?.id ?? ""} need={need.current} onClose={() => setSheet(null)} onListen={readSheet} />}
+      {sheet === "door" && picked && rec && <DoorSheet r={picked} lang={lang} serviceId={rec.services[0]?.id ?? ""} need={door.current} onClose={() => setSheet(null)} onListen={readSheet} />}
       {sheet === "prefs" && (
         <PrefSheet lang={lang} prefs={prefs} card={card} onClose={() => setSheet(null)} onListen={readSheet}
           onApply={(p, c) => { setPrefs(p); setCard(c); setPrefsTouched(true); setSheet(null); if (last.current && loc) void fetchRec(last.current.services, last.current.urgency, loc, p, c, true); }} />
