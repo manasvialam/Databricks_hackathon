@@ -65,6 +65,7 @@ export const en = {
   priv: "Private",
   open24: "Open 24 hours",
   prefs: "What matters to you",
+  prefsHint: "Ayushman Bharat card, speed, cost, comfort",
   card: "Do you have an Ayushman Bharat (PM-JAY) card?",
   yes: "Yes",
   no: "No",
