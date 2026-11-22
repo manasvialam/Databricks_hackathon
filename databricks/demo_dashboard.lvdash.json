@@ -1,0 +1,3917 @@
+{
+ "datasets": [
+  {
+   "name": "ds_fac",
+   "displayName": "ds_fac",
+   "queryLines": [
+    "SELECT facility_id, state, facility_type, location_trust, CASE location_trust WHEN 'verified' THEN 'Verified on the map' WHEN 'verified_osm' THEN 'Verified (OpenStreetMap)'\n  WHEN 'probable' THEN 'Probable' WHEN 'approximate_pin' THEN 'Only the PIN-code centre' ELSE 'Unverified' END AS location_label, facility_trust,\n        CASE WHEN merge_suspect_score >= 2 THEN 'May mix several hospitals' WHEN merge_suspect_score >= 1 THEN 'Watch' ELSE 'Looks like one hospital' END AS merge_label,\n        CASE WHEN merge_suspect_score >= 2 THEN 1 ELSE 0 END AS is_merge,\n        CASE WHEN location_trust IN ('unverified', 'approximate_pin') THEN 1 ELSE 0 END AS loc_weak,\n        CASE WHEN location_trust IN ('verified', 'verified_osm', 'probable') AND merge_suspect_score < 2 AND facility_trust >= 60 THEN 1 ELSE 0 END AS passes\n      FROM workspace.facility_finder.facilities_serving\n"
+   ]
+  },
+  {
+   "name": "ds_funnel",
+   "displayName": "ds_funnel",
+   "queryLines": [
+    "WITH s AS (SELECT s.facility_id, s.state, s.facility_type, s.location_trust, s.merge_suspect_score, s.facility_trust,\n          (st.facility_id IS NOT NULL) AS has_strong\n        FROM workspace.facility_finder.facilities_serving s LEFT JOIN (SELECT DISTINCT facility_id FROM workspace.facility_finder.facility_claims WHERE level = 'Strong') st ON s.facility_id = st.facility_id)\n      SELECT '1 All records' AS stage, state, facility_type, facility_id FROM s\n      UNION ALL SELECT '2 Position checked', state, facility_type, facility_id FROM s WHERE location_trust IN ('verified', 'verified_osm', 'probable')\n      UNION ALL SELECT '3 Not a suspected merge', state, facility_type, facility_id FROM s WHERE location_trust IN ('verified', 'verified_osm', 'probable') AND merge_suspect_score < 2\n      UNION ALL SELECT '4 Trust score 60+', state, facility_type, facility_id FROM s WHERE location_trust IN ('verified', 'verified_osm', 'probable') AND merge_suspect_score < 2 AND facility_trust >= 60\n      UNION ALL SELECT '5 Has a Strong claim', state, facility_type, facility_id FROM s WHERE location_trust IN ('verified', 'verified_osm', 'probable') AND merge_suspect_score < 2 AND facility_trust >= 60 AND has_strong\n"
+   ]
+  },
+  {
+   "name": "ds_examples",
+   "displayName": "ds_examples",
+   "queryLines": [
+    "WITH st AS (\n        SELECT facility_id, service, get(snippets, 0).text AS quote, regexp_extract(get(cite_urls, 0).url, 'https?://([^/]+)', 1) AS source_site,\n               row_number() OVER (PARTITION BY facility_id ORDER BY claim_strength DESC) AS k\n        FROM workspace.facility_finder.facility_claims WHERE level = 'Strong' AND facility_merge_suspect AND NOT coalesce(get(cite_urls, 0).names_facility_in_url, false))\n      SELECT s.name, s.city AS listed_city, s.state AS state_on_map, s.merge_suspect_score AS merge_red_flags, s.facility_trust,\n             st.service AS strong_claim, st.quote, st.source_site\n      FROM workspace.facility_finder.facilities_serving s JOIN st ON s.facility_id = st.facility_id AND st.k = 1\n      WHERE s.merge_suspect_score >= 3 AND s.location_trust = 'unverified' AND st.quote IS NOT NULL\n      ORDER BY s.n_claims DESC LIMIT 8\n"
+   ]
+  },
+  {
+   "name": "ds_trace",
+   "displayName": "ds_trace",
+   "queryLines": [
+    "SELECT c.service, s.facility_id, s.name, s.city, s.state, s.district, s.lat, s.lon, c.level, c.claim_strength,\n       s.location_trust, s.location_trust_score, s.merge_suspect_score, s.facility_trust,\n       CASE s.location_trust WHEN 'verified' THEN 'Verified on the map' WHEN 'verified_osm' THEN 'Verified (OpenStreetMap)'\n            WHEN 'probable' THEN 'Probable' WHEN 'approximate_pin' THEN 'Only the PIN-code centre' ELSE 'Unverified' END AS location_label,\n       (c.level IN ('Strong', 'Moderate')) AS ok_claim,\n       (s.location_trust IN ('verified', 'verified_osm', 'probable')) AS ok_loc,\n       (s.merge_suspect_score < 2) AS ok_merge,\n       (s.facility_trust >= 60) AS ok_trust,\n       get(c.snippets, 0).text AS quote,\n       regexp_extract(get(c.cite_urls, 0).url, 'https?://([^/]+)', 1) AS source_site,\n       CASE WHEN get(c.cite_urls, 0).names_facility_in_url THEN 'Yes' ELSE 'No' END AS source_names_facility\nFROM workspace.facility_finder.facility_claims c JOIN workspace.facility_finder.facilities_serving s ON c.facility_id = s.facility_id\n"
+   ]
+  },
+  {
+   "name": "ds_trace_funnel",
+   "displayName": "ds_trace_funnel",
+   "queryLines": [
+    "WITH b AS (\nSELECT c.service, s.facility_id, s.name, s.city, s.state, s.district, s.lat, s.lon, c.level, c.claim_strength,\n       s.location_trust, s.location_trust_score, s.merge_suspect_score, s.facility_trust,\n       CASE s.location_trust WHEN 'verified' THEN 'Verified on the map' WHEN 'verified_osm' THEN 'Verified (OpenStreetMap)'\n            WHEN 'probable' THEN 'Probable' WHEN 'approximate_pin' THEN 'Only the PIN-code centre' ELSE 'Unverified' END AS location_label,\n       (c.level IN ('Strong', 'Moderate')) AS ok_claim,\n       (s.location_trust IN ('verified', 'verified_osm', 'probable')) AS ok_loc,\n       (s.merge_suspect_score < 2) AS ok_merge,\n       (s.facility_trust >= 60) AS ok_trust,\n       get(c.snippets, 0).text AS quote,\n       regexp_extract(get(c.cite_urls, 0).url, 'https?://([^/]+)', 1) AS source_site,\n       CASE WHEN get(c.cite_urls, 0).names_facility_in_url THEN 'Yes' ELSE 'No' END AS source_names_facility\nFROM workspace.facility_finder.facility_claims c JOIN workspace.facility_finder.facilities_serving s ON c.facility_id = s.facility_id\n)\n      SELECT '1 Claims this service' AS stage, service, state, facility_id FROM b\n      UNION ALL SELECT '2 Evidence Strong or Moderate', service, state, facility_id FROM b WHERE ok_claim\n      UNION ALL SELECT '3 Position checked', service, state, facility_id FROM b WHERE ok_claim AND ok_loc\n      UNION ALL SELECT '4 Not a suspected merge', service, state, facility_id FROM b WHERE ok_claim AND ok_loc AND ok_merge\n      UNION ALL SELECT '5 Trust score 60+', service, state, facility_id FROM b WHERE ok_claim AND ok_loc AND ok_merge AND ok_trust\n"
+   ]
+  },
+  {
+   "name": "ds_map",
+   "displayName": "ds_map",
+   "queryLines": [
+    "WITH b AS (\nSELECT c.service, s.facility_id, s.name, s.city, s.state, s.district, s.lat, s.lon, c.level, c.claim_strength,\n       s.location_trust, s.location_trust_score, s.merge_suspect_score, s.facility_trust,\n       CASE s.location_trust WHEN 'verified' THEN 'Verified on the map' WHEN 'verified_osm' THEN 'Verified (OpenStreetMap)'\n            WHEN 'probable' THEN 'Probable' WHEN 'approximate_pin' THEN 'Only the PIN-code centre' ELSE 'Unverified' END AS location_label,\n       (c.level IN ('Strong', 'Moderate')) AS ok_claim,\n       (s.location_trust IN ('verified', 'verified_osm', 'probable')) AS ok_loc,\n       (s.merge_suspect_score < 2) AS ok_merge,\n       (s.facility_trust >= 60) AS ok_trust,\n       get(c.snippets, 0).text AS quote,\n       regexp_extract(get(c.cite_urls, 0).url, 'https?://([^/]+)', 1) AS source_site,\n       CASE WHEN get(c.cite_urls, 0).names_facility_in_url THEN 'Yes' ELSE 'No' END AS source_names_facility\nFROM workspace.facility_finder.facility_claims c JOIN workspace.facility_finder.facilities_serving s ON c.facility_id = s.facility_id\n)\n      SELECT service, state, name, lat, lon,\n             CASE WHEN ok_claim AND ok_loc AND ok_merge AND ok_trust THEN 'Passes all checks' WHEN ok_claim THEN 'Claim ok, but a check failed' ELSE 'Weak or contradicted' END AS verdict\n      FROM b WHERE lat IS NOT NULL\n"
+   ]
+  },
+  {
+   "name": "ds_top",
+   "displayName": "ds_top",
+   "queryLines": [
+    "WITH b AS (\nSELECT c.service, s.facility_id, s.name, s.city, s.state, s.district, s.lat, s.lon, c.level, c.claim_strength,\n       s.location_trust, s.location_trust_score, s.merge_suspect_score, s.facility_trust,\n       CASE s.location_trust WHEN 'verified' THEN 'Verified on the map' WHEN 'verified_osm' THEN 'Verified (OpenStreetMap)'\n            WHEN 'probable' THEN 'Probable' WHEN 'approximate_pin' THEN 'Only the PIN-code centre' ELSE 'Unverified' END AS location_label,\n       (c.level IN ('Strong', 'Moderate')) AS ok_claim,\n       (s.location_trust IN ('verified', 'verified_osm', 'probable')) AS ok_loc,\n       (s.merge_suspect_score < 2) AS ok_merge,\n       (s.facility_trust >= 60) AS ok_trust,\n       get(c.snippets, 0).text AS quote,\n       regexp_extract(get(c.cite_urls, 0).url, 'https?://([^/]+)', 1) AS source_site,\n       CASE WHEN get(c.cite_urls, 0).names_facility_in_url THEN 'Yes' ELSE 'No' END AS source_names_facility\nFROM workspace.facility_finder.facility_claims c JOIN workspace.facility_finder.facilities_serving s ON c.facility_id = s.facility_id\n),\nr AS (\n  SELECT *, CAST(0.4 * claim_strength AS DOUBLE) AS pts_claim, CAST(0.4 * facility_trust / 100.0 AS DOUBLE) AS pts_trust,\n         CAST(0.2 * coalesce(location_trust_score, 0) AS DOUBLE) AS pts_loc, CAST(-0.1 * merge_suspect_score AS DOUBLE) AS pts_merge,\n         0.4 * claim_strength + 0.4 * facility_trust / 100.0 + 0.2 * coalesce(location_trust_score, 0) - 0.1 * merge_suspect_score AS evidence_score\n  FROM b WHERE ok_claim AND ok_loc AND ok_merge AND ok_trust\n),\nranked AS (SELECT *, row_number() OVER (PARTITION BY service, state ORDER BY evidence_score DESC) AS rn FROM r)\nSELECT service, state, rn AS rank, name, city, level, round(evidence_score, 2) AS evidence_score, facility_trust, location_label,\n        quote, source_site, source_names_facility FROM ranked WHERE rn <= 10\n"
+   ]
+  },
+  {
+   "name": "ds_break",
+   "displayName": "ds_break",
+   "queryLines": [
+    "WITH b AS (\nSELECT c.service, s.facility_id, s.name, s.city, s.state, s.district, s.lat, s.lon, c.level, c.claim_strength,\n       s.location_trust, s.location_trust_score, s.merge_suspect_score, s.facility_trust,\n       CASE s.location_trust WHEN 'verified' THEN 'Verified on the map' WHEN 'verified_osm' THEN 'Verified (OpenStreetMap)'\n            WHEN 'probable' THEN 'Probable' WHEN 'approximate_pin' THEN 'Only the PIN-code centre' ELSE 'Unverified' END AS location_label,\n       (c.level IN ('Strong', 'Moderate')) AS ok_claim,\n       (s.location_trust IN ('verified', 'verified_osm', 'probable')) AS ok_loc,\n       (s.merge_suspect_score < 2) AS ok_merge,\n       (s.facility_trust >= 60) AS ok_trust,\n       get(c.snippets, 0).text AS quote,\n       regexp_extract(get(c.cite_urls, 0).url, 'https?://([^/]+)', 1) AS source_site,\n       CASE WHEN get(c.cite_urls, 0).names_facility_in_url THEN 'Yes' ELSE 'No' END AS source_names_facility\nFROM workspace.facility_finder.facility_claims c JOIN workspace.facility_finder.facilities_serving s ON c.facility_id = s.facility_id\n),\nr AS (\n  SELECT *, CAST(0.4 * claim_strength AS DOUBLE) AS pts_claim, CAST(0.4 * facility_trust / 100.0 AS DOUBLE) AS pts_trust,\n         CAST(0.2 * coalesce(location_trust_score, 0) AS DOUBLE) AS pts_loc, CAST(-0.1 * merge_suspect_score AS DOUBLE) AS pts_merge,\n         0.4 * claim_strength + 0.4 * facility_trust / 100.0 + 0.2 * coalesce(location_trust_score, 0) - 0.1 * merge_suspect_score AS evidence_score\n  FROM b WHERE ok_claim AND ok_loc AND ok_merge AND ok_trust\n),\nranked AS (SELECT *, row_number() OVER (PARTITION BY service, state ORDER BY evidence_score DESC) AS rn FROM r)\nSELECT service, state, concat(rn, '. ', name) AS facility, stack(4, 'Claim strength', pts_claim, 'Facility trust', pts_trust,\n        'Location trust', pts_loc, 'Merge-suspect penalty', pts_merge) AS (component, points) FROM ranked WHERE rn <= 5\n"
+   ]
+  },
+  {
+   "name": "ds_audit",
+   "displayName": "ds_audit",
+   "queryLines": [
+    "SELECT level, 'Quote supports the claim' AS verdict, share_yes AS share, audited FROM workspace.facility_finder.claim_audit_summary\n      UNION ALL SELECT level, 'Quote does not support it', share_no, audited FROM workspace.facility_finder.claim_audit_summary\n      UNION ALL SELECT level, 'Unclear', share_unclear, audited FROM workspace.facility_finder.claim_audit_summary\n"
+   ]
+  },
+  {
+   "name": "ds_domains",
+   "displayName": "ds_domains",
+   "queryLines": [
+    "SELECT least(n_independent_domains, 6) AS independent_sources, round(avg(facility_trust), 1) AS avg_trust, count(*) AS facilities\n      FROM workspace.facility_finder.v_eda_trust WHERE n_independent_domains IS NOT NULL GROUP BY 1\n"
+   ]
+  },
+  {
+   "name": "ds_levelmerge",
+   "displayName": "ds_levelmerge",
+   "queryLines": [
+    "SELECT level, CASE WHEN facility_merge_suspect THEN 'on a record that may mix facilities' ELSE 'on a clean record' END AS kind, count(*) AS n\n      FROM workspace.facility_finder.facility_claims GROUP BY 1, 2\n"
+   ]
+  },
+  {
+   "name": "ds_signals",
+   "displayName": "ds_signals",
+   "queryLines": [
+    "SELECT * FROM VALUES\n        (1, 'Evidence level: Strong', 'starts at 72%', 'The facility text names the service in several fields'),\n        (2, 'Evidence level: Moderate', 'starts at 50%', 'One field names it'),\n        (3, 'Evidence level: Weak', 'starts at 20%', 'A passing mention only'),\n        (4, 'Another field agrees', 'up', 'Each extra field that agrees, up to three'),\n        (5, 'Prerequisite missing (e.g. NICU with no neonatologist)', 'down, strongly', 'Claim is implausible without it'),\n        (6, 'Text contradicts the claim', 'down, strongly', 'Each contradiction, up to two'),\n        (7, 'Record may mix several hospitals', 'down', 'Each red flag lowers the whole record'),\n        (8, 'Source page names the facility', 'up', 'A page about this hospital, not another'),\n        (9, 'Verified match on the national PM-JAY list', 'up (capped)', 'Independent proof the hospital exists; cannot rescue weak evidence')\n      AS t(step, signal, effect, why)\n"
+   ]
+  },
+  {
+   "name": "ds_eval",
+   "displayName": "ds_eval",
+   "queryLines": [
+    "SELECT test, passed, total, passed / total AS pass_rate FROM (SELECT * FROM VALUES\n        ('Real emergencies recognised', 22, 22), ('Non-emergencies left alone (no false alarm)', 11, 11), ('Recommendation test queries passed', 11, 12)\n      AS t(test, passed, total))\n"
+   ]
+  },
+  {
+   "name": "ds_desert",
+   "displayName": "ds_desert",
+   "queryLines": [
+    "SELECT service, CASE WHEN km <= 10 THEN '1 within 10 km' WHEN km <= 25 THEN '2 10 to 25 km' WHEN km <= 50 THEN '3 25 to 50 km'\n        WHEN km <= 100 THEN '4 50 to 100 km' ELSE '5 over 100 km' END AS bucket, count(*) AS n FROM workspace.facility_finder.eda_office_service_km GROUP BY 1, 2\n"
+   ]
+  },
+  {
+   "name": "ds_thin",
+   "displayName": "ds_thin",
+   "queryLines": [
+    "SELECT state, count(*) AS facilities FROM workspace.facility_finder.facilities_serving WHERE state IS NOT NULL GROUP BY 1 ORDER BY 2 ASC LIMIT 10\n"
+   ]
+  },
+  {
+   "name": "ds_items",
+   "displayName": "ds_items",
+   "queryLines": [
+    "SELECT * FROM VALUES ('Not about services (addresses, hours, history)', 33860), ('Non-medical (wheelchair access, parking)', 3716),\n        ('Described a different hospital', 3282), ('Repeats within the same list', 3058), ('Empty placeholders (\"none\", \"-\")', 1006) AS t(reason, items)\n"
+   ]
+  },
+  {
+   "name": "ds_rules",
+   "displayName": "ds_rules",
+   "queryLines": [
+    "SELECT * FROM VALUES\n        (1, 'Booking or directory sites only', 'Claims capped at Weak', '965 claims lowered (1,818 hospitals appear only on such sites)'),\n        (2, 'Facility type or missing support clashes with the claim', 'Marked Contradicted', '369 claims (e.g. a clinic listing an ICU)'),\n        (3, 'Record may contain another hospital', 'Marked \"confirm first\"', '2,264 claims on 445 hospitals'),\n        (4, 'C-section not stated, but obstetrics + operating theatre + anaesthesia listed', 'Marked Inferred', '339 hospitals'),\n        (5, 'Item list stops at exactly 50', 'A missing service may be missing data', '3,226 hospitals (32%)'),\n        (6, 'No service evidence at all', 'Shown as Unknown, never as \"offers nothing\"', '3,263 hospitals')\n      AS t(step, situation, what_we_do, how_many)\n"
+   ]
+  },
+  {
+   "name": "ds_reg_kpi",
+   "displayName": "ds_reg_kpi",
+   "queryLines": [
+    "SELECT sum(CASE WHEN tier = 'verified' THEN 1 ELSE 0 END) AS verified, sum(CASE WHEN tier = 'possible' THEN 1 ELSE 0 END) AS possible,\n        sum(CASE WHEN badge_eligible THEN 1 ELSE 0 END) AS badge_eligible, (SELECT count(*) FROM workspace.facility_finder.hem_hospitals) AS national_list FROM workspace.facility_finder.registry_match\n"
+   ]
+  },
+  {
+   "name": "ds_reg_method",
+   "displayName": "ds_reg_method",
+   "queryLines": [
+    "SELECT CASE method WHEN 'name+place' THEN 'Name and place agree' WHEN 'phone+name' THEN 'Phone and name agree' WHEN 'weak' THEN 'Weak: needs a person to check'\n        ELSE 'Agrees, but phone is shared' END AS how_matched, CASE tier WHEN 'verified' THEN 'Verified' ELSE 'Possible (not used as proof)' END AS outcome, count(*) AS n\n      FROM workspace.facility_finder.registry_match GROUP BY 1, 2\n"
+   ]
+  },
+  {
+   "name": "ds_reg_km",
+   "displayName": "ds_reg_km",
+   "queryLines": [
+    "SELECT CASE WHEN km <= 1 THEN '1 within 1 km' WHEN km <= 5 THEN '2 1 to 5 km' WHEN km <= 25 THEN '3 5 to 25 km' ELSE '4 over 25 km' END AS distance, count(*) AS n\n      FROM workspace.facility_finder.registry_match WHERE tier = 'verified' AND km IS NOT NULL GROUP BY 1\n"
+   ]
+  },
+  {
+   "name": "ds_reg_owner",
+   "displayName": "ds_reg_owner",
+   "queryLines": [
+    "SELECT 'National list (39,737)' AS source, ownership, count(*) AS n FROM workspace.facility_finder.hem_hospitals GROUP BY 2\n      UNION ALL SELECT 'Verified matches in our data', ownership, count(*) FROM workspace.facility_finder.registry_match WHERE tier = 'verified' GROUP BY 2\n"
+   ]
+  },
+  {
+   "name": "ds_reg_signals",
+   "displayName": "ds_reg_signals",
+   "queryLines": [
+    "SELECT * FROM VALUES\n        (1, 'Verified match on the national list', '+0.5', 'Independent proof the hospital exists'),\n        (2, 'The list names a specialty package that maps to this service', '+0.8', 'Independent evidence for the service itself'),\n        (3, 'NABH accredited / trauma-burn unit on the list', '+0.15', 'Extra recognition'),\n        (4, 'All registry evidence together', 'capped at +1.2', 'It can never turn Weak evidence into a recommendation')\n      AS t(step, signal, effect, why)\n"
+   ]
+  },
+  {
+   "name": "ds_ledger",
+   "displayName": "ds_ledger",
+   "queryLines": [
+    "SELECT '1 Read and repair the file' AS stage, 'Rows parsed (a normal read crashes: quotes are escaped in a non-standard way)' AS step, CAST(10088 AS BIGINT) AS n, 'rows' AS unit, 'Read with the file''s own escape rule' AS what_we_did, 'Person_1/output/run_stats.json' AS source_file, 'From a report in the repo' AS number_is UNION ALL SELECT '1 Read and repair the file' AS stage, 'Broken fragments: pieces of 30 real records' AS step, CAST(88 AS BIGINT) AS n, 'rows' AS unit, 'Set aside, then used to stitch the records back' AS what_we_did, 'Person_1/output/run_stats.json' AS source_file, 'From a report in the repo' AS number_is UNION ALL SELECT '1 Read and repair the file' AS stage, 'Truncated records repaired' AS step, CAST(30 AS BIGINT) AS n, 'hospitals' AS unit, 'Stitched back together: 30 of 30 recovered' AS what_we_did, 'Person_1/PERSON1_REPORT.md section 1' AS source_file, 'Counted from the data' AS number_is UNION ALL SELECT '1 Read and repair the file' AS stage, 'Exact duplicate rows' AS step, CAST(11 AS BIGINT) AS n, 'rows' AS unit, 'Dropped (byte-identical copies)' AS what_we_did, 'Person_1/output/run_stats.json' AS source_file, 'From a report in the repo' AS number_is UNION ALL SELECT '1 Read and repair the file' AS stage, 'Item lists cut off at exactly 50' AS step, CAST(3226 AS BIGINT) AS n, 'hospitals' AS unit, 'Flagged: a missing service may just be missing data' AS what_we_did, 'Person_1/PERSON1_REPORT.md section 3' AS source_file, 'Counted from the data' AS number_is UNION ALL SELECT '1 Read and repair the file' AS stage, 'Specialty spellings merged into one vocabulary' AS step, CAST(451 AS BIGINT) AS n, 'spellings' AS unit, 'Mapped to one name each' AS what_we_did, 'Person_1/PERSON1_REPORT.md section 3' AS source_file, 'From a report in the repo' AS number_is UNION ALL SELECT '1 Read and repair the file' AS stage, 'Dead or redundant columns' AS step, CAST(9 AS BIGINT) AS n, 'columns' AS unit, 'Kept in raw, left out of the model' AS what_we_did, 'Person_1/PERSON1_REPORT.md section 3' AS source_file, 'From a report in the repo' AS number_is UNION ALL SELECT '1 Read and repair the file' AS stage, 'Impossible founding years (0, 7, 15)' AS step, CAST(5 AS BIGINT) AS n, 'rows' AS unit, 'Removed; original kept in raw_yearEstablished' AS what_we_did, 'Person_1/PERSON1_REPORT.md section 3' AS source_file, 'From a report in the repo' AS number_is UNION ALL SELECT '1 Read and repair the file' AS stage, 'Names with an address inside' AS step, CAST(121 AS BIGINT) AS n, 'names' AS unit, 'display_name shortened; the original name is unchanged' AS what_we_did, 'Person_1/PERSON1_REPORT.md section 3' AS source_file, 'From a report in the repo' AS number_is UNION ALL SELECT '2 Where is it?' AS stage, 'Coordinates over 100 km from the PIN-code centre' AS step, CAST(1194 AS BIGINT) AS n, 'hospitals' AS unit, 'Flagged; location trust lowered' AS what_we_did, 'Person_2/README.md' AS source_file, 'Counted from the data' AS number_is UNION ALL SELECT '2 Where is it?' AS stage, 'District in the record disagrees with the PIN directory' AS step, CAST(2034 AS BIGINT) AS n, 'hospitals' AS unit, 'Flagged' AS what_we_did, 'Person_2/README.md' AS source_file, 'Counted from the data' AS number_is UNION ALL SELECT '2 Where is it?' AS stage, 'City disagrees with the PIN directory' AS step, CAST(1231 AS BIGINT) AS n, 'hospitals' AS unit, 'Flagged' AS what_we_did, 'Person_2/README.md' AS source_file, 'Counted from the data' AS number_is UNION ALL SELECT '2 Where is it?' AS stage, 'Coordinates fall in a different state' AS step, CAST(167 AS BIGINT) AS n, 'hospitals' AS unit, 'Flagged' AS what_we_did, 'Person_2/README.md' AS source_file, 'Counted from the data' AS number_is UNION ALL SELECT '2 Where is it?' AS stage, 'PIN not in the India Post directory' AS step, CAST(209 AS BIGINT) AS n, 'hospitals' AS unit, 'Flagged; fall back to the city' AS what_we_did, 'Person_2/README.md' AS source_file, 'Counted from the data' AS number_is UNION ALL SELECT '2 Where is it?' AS stage, 'PIN malformed or spaced, reformatted' AS step, CAST(156 AS BIGINT) AS n, 'hospitals' AS unit, 'Fixed' AS what_we_did, 'Person_2/README.md' AS source_file, 'Counted from the data' AS number_is UNION ALL SELECT '2 Where is it?' AS stage, 'Coordinates outside India' AS step, CAST(6 AS BIGINT) AS n, 'hospitals' AS unit, 'Blanked' AS what_we_did, 'Person_2/README.md' AS source_file, 'Counted from the data' AS number_is UNION ALL SELECT '2 Where is it?' AS stage, 'OpenStreetMap places downloaded (hospitals, clinics, doctors, dentists)' AS step, CAST(87469 AS BIGINT) AS n, 'places' AS unit, 'Independent check on coordinates' AS what_we_did, 'Person_2/README.md' AS source_file, 'From a report in the repo' AS number_is UNION ALL SELECT '2 Where is it?' AS stage, 'Hospitals matched to an OpenStreetMap place (name 80%+ similar, within 2 km)' AS step, CAST(3379 AS BIGINT) AS n, 'hospitals' AS unit, 'Counts as corroboration; a miss is not evidence of a wrong location' AS what_we_did, 'Person_2/README.md' AS source_file, 'From a report in the repo' AS number_is UNION ALL SELECT '2 Where is it?' AS stage, 'Coordinate-vs-PIN conflicts OpenStreetMap could settle (609 sided with coordinates, 190 with the PIN)' AS step, CAST(799 AS BIGINT) AS n, 'hospitals' AS unit, 'OpenStreetMap decides the location' AS what_we_did, 'Person_2/README.md' AS source_file, 'From a report in the repo' AS number_is UNION ALL SELECT '3 Phones and contacts' AS stage, 'Phone numbers checked' AS step, CAST(39249 AS BIGINT) AS n, 'numbers' AS unit, 'Parsed against the Indian numbering plan' AS what_we_did, 'facilities_final: n_phone_valid, n_phone_invalid' AS source_file, 'Counted from the data' AS number_is UNION ALL SELECT '3 Phones and contacts' AS stage, 'Numbers kept as usable' AS step, CAST(36634 AS BIGINT) AS n, 'numbers' AS unit, 'Valid, not shared, area code matches' AS what_we_did, 'facilities_final: n_phone_usable' AS source_file, 'Counted from the data' AS number_is UNION ALL SELECT '3 Phones and contacts' AS stage, 'Fake placeholder numbers (e.g. 9999999999)' AS step, CAST(37 AS BIGINT) AS n, 'numbers' AS unit, 'Set aside' AS what_we_did, 'facilities_final: n_phone_placeholder' AS source_file, 'Counted from the data' AS number_is UNION ALL SELECT '3 Phones and contacts' AS stage, 'Official phone was a booking or aggregator line' AS step, CAST(237 AS BIGINT) AS n, 'hospitals' AS unit, 'Never trusted as the hospital''s own' AS what_we_did, 'facilities_final: official_phone_status' AS source_file, 'Counted from the data' AS number_is UNION ALL SELECT '3 Phones and contacts' AS stage, 'Official phone was a chain helpline' AS step, CAST(19 AS BIGINT) AS n, 'hospitals' AS unit, 'Never trusted as the hospital''s own' AS what_we_did, 'facilities_final: official_phone_status' AS source_file, 'Counted from the data' AS number_is UNION ALL SELECT '3 Phones and contacts' AS stage, 'Landline area code belongs to another state' AS step, CAST(169 AS BIGINT) AS n, 'hospitals' AS unit, 'Flagged' AS what_we_did, 'facilities_final: flag_phone_area_code_conflict' AS source_file, 'Counted from the data' AS number_is UNION ALL SELECT '3 Phones and contacts' AS stage, 'Hospitals left with no reliable phone' AS step, CAST(343 AS BIGINT) AS n, 'hospitals' AS unit, 'The app says so instead of showing a wrong number' AS what_we_did, 'facilities_final: flag_no_usable_phone' AS source_file, 'Counted from the data' AS number_is UNION ALL SELECT '3 Phones and contacts' AS stage, 'Toll-free numbers repaired (lost the leading 1, saved as American, stray +1)' AS step, CAST(414 AS BIGINT) AS n, 'numbers' AS unit, 'Repaired' AS what_we_did, 'Team summary (Person 3)' AS source_file, 'Team summary (not in the repo)' AS number_is UNION ALL SELECT '3 Phones and contacts' AS stage, 'Hospitals that no longer show a wrong or misleading number' AS step, CAST(1587 AS BIGINT) AS n, 'hospitals' AS unit, 'Wrong numbers removed' AS what_we_did, 'Team summary (Person 3)' AS source_file, 'Team summary (not in the repo)' AS number_is UNION ALL SELECT '4 One hospital or several?' AS stage, 'Records with at least 1 merge red flag' AS step, CAST(4127 AS BIGINT) AS n, 'hospitals' AS unit, 'Watch' AS what_we_did, 'facilities_final: merge_suspect_score' AS source_file, 'Counted from the data' AS number_is UNION ALL SELECT '4 One hospital or several?' AS stage, 'Records with 2 or more merge red flags (may blend hospitals)' AS step, CAST(1874 AS BIGINT) AS n, 'hospitals' AS unit, 'Claims marked ''confirm first''; score lowered' AS what_we_did, 'facilities_final: merge_suspect_score' AS source_file, 'Counted from the data' AS number_is UNION ALL SELECT '4 One hospital or several?' AS stage, 'Records with 3 or more merge red flags' AS step, CAST(468 AS BIGINT) AS n, 'hospitals' AS unit, 'Strongest warning' AS what_we_did, 'facilities_final: merge_suspect_score' AS source_file, 'Counted from the data' AS number_is UNION ALL SELECT '4 One hospital or several?' AS stage, 'Cited pages name a different business (aggregator slug mismatch)' AS step, CAST(1786 AS BIGINT) AS n, 'hospitals' AS unit, 'Flagged' AS what_we_did, 'RED_FLAGS_AND_VALIDATION.md (E3)' AS source_file, 'Counted from the data' AS number_is UNION ALL SELECT '4 One hospital or several?' AS stage, 'Text names a different hospital' AS step, CAST(156 AS BIGINT) AS n, 'hospitals' AS unit, 'Those sentences dropped from the evidence' AS what_we_did, 'RED_FLAGS_AND_VALIDATION.md (G9)' AS source_file, 'Counted from the data' AS number_is UNION ALL SELECT '4 One hospital or several?' AS stage, 'Website shared with an unrelated hospital' AS step, CAST(193 AS BIGINT) AS n, 'hospitals' AS unit, 'Flagged' AS what_we_did, 'RED_FLAGS_AND_VALIDATION.md (D6)' AS source_file, 'Counted from the data' AS number_is UNION ALL SELECT '4 One hospital or several?' AS stage, 'Website is a directory page, not the hospital''s own' AS step, CAST(386 AS BIGINT) AS n, 'hospitals' AS unit, 'Flagged' AS what_we_did, 'RED_FLAGS_AND_VALIDATION.md (D5)' AS source_file, 'Counted from the data' AS number_is UNION ALL SELECT '4 One hospital or several?' AS stage, 'Possible duplicate record' AS step, CAST(18 AS BIGINT) AS n, 'hospitals' AS unit, 'Flagged' AS what_we_did, 'RED_FLAGS_AND_VALIDATION.md (I1)' AS source_file, 'Counted from the data' AS number_is UNION ALL SELECT '5 Numbers and dates' AS stage, 'Doctor counts over 1,000' AS step, CAST(11 AS BIGINT) AS n, 'hospitals' AS unit, 'Kept, flagged, checked on the web' AS what_we_did, 'Person_1/PERSON1_REPORT.md section 4.5' AS source_file, 'Counted from the data' AS number_is UNION ALL SELECT '5 Numbers and dates' AS stage, 'Bed counts over 3,000' AS step, CAST(2 AS BIGINT) AS n, 'hospitals' AS unit, 'Kept, flagged, checked on the web' AS what_we_did, 'Person_1/PERSON1_REPORT.md section 4.5' AS source_file, 'Counted from the data' AS number_is UNION ALL SELECT '5 Numbers and dates' AS stage, 'Hospitals and medical schools on Wikidata (outside source)' AS step, CAST(3105 AS BIGINT) AS n, 'records' AS unit, 'Used to check founding year and beds' AS what_we_did, 'Person_1/output/verification_stats.json' AS source_file, 'From a report in the repo' AS number_is UNION ALL SELECT '5 Numbers and dates' AS stage, 'Facilities matched to Wikidata (names agree AND within 15 km)' AS step, CAST(285 AS BIGINT) AS n, 'hospitals' AS unit, 'Audit of the matching: 50 of 50 and 29 of 30 correct; 4 doubtful ones rejected' AS what_we_did, 'Person_1/PERSON1_REPORT.md section 4.1' AS source_file, 'From a report in the repo' AS number_is UNION ALL SELECT '5 Numbers and dates' AS stage, 'Founding years confirmed by Wikidata' AS step, CAST(116 AS BIGINT) AS n, 'hospitals' AS unit, 'Marked confirmed' AS what_we_did, 'facilities_final: year_check' AS source_file, 'Counted from the data' AS number_is UNION ALL SELECT '5 Numbers and dates' AS stage, 'Founding years that conflict with the facility''s own text' AS step, CAST(245 AS BIGINT) AS n, 'hospitals' AS unit, 'Flagged' AS what_we_did, 'facilities_final: year_check' AS source_file, 'Counted from the data' AS number_is UNION ALL SELECT '5 Numbers and dates' AS stage, 'Founding years disputed: record vs Wikidata' AS step, CAST(24 AS BIGINT) AS n, 'hospitals' AS unit, 'Both values shown; not overwritten, because Wikidata is sometimes the wrong one' AS what_we_did, 'facilities_final: year_check' AS source_file, 'Counted from the data' AS number_is UNION ALL SELECT '5 Numbers and dates' AS stage, 'Extreme values checked on the web (2 confirmed, 8 contradicted, 2 chain-wide, 3 unverified)' AS step, CAST(15 AS BIGINT) AS n, 'values' AS unit, 'Values kept; the verdict is shown next to the number' AS what_we_did, 'Person_1/PERSON1_REPORT.md section 4.5' AS source_file, 'From a report in the repo' AS number_is UNION ALL SELECT '6 Services and claims' AS stage, 'Service claims built (15 services)' AS step, CAST(23624 AS BIGINT) AS n, 'claims' AS unit, 'Each keeps its quote, field and source link' AS what_we_did, 'facilities_final: claims' AS source_file, 'Counted from the data' AS number_is UNION ALL SELECT '6 Services and claims' AS stage, 'Hospitals with Moderate or stronger evidence for a service' AS step, CAST(4941 AS BIGINT) AS n, 'hospitals' AS unit, 'Can be recommended' AS what_we_did, 'facilities_final: claims' AS source_file, 'Counted from the data' AS number_is UNION ALL SELECT '6 Services and claims' AS stage, 'Hospitals with only weak or inferred claims' AS step, CAST(1785 AS BIGINT) AS n, 'hospitals' AS unit, 'Shown, never picked' AS what_we_did, 'facilities_final: claims' AS source_file, 'Counted from the data' AS number_is UNION ALL SELECT '6 Services and claims' AS stage, 'Hospitals with no usable service evidence' AS step, CAST(3263 AS BIGINT) AS n, 'hospitals' AS unit, 'Shown as Unknown, not as ''offers nothing''' AS what_we_did, 'facilities_final: n_claims' AS source_file, 'Counted from the data' AS number_is UNION ALL SELECT '6 Services and claims' AS stage, 'Claims contradicted by other facts (e.g. a clinic listing an ICU)' AS step, CAST(369 AS BIGINT) AS n, 'claims' AS unit, 'Level set to Contradicted' AS what_we_did, 'facilities_final: claims' AS source_file, 'Counted from the data' AS number_is UNION ALL SELECT '6 Services and claims' AS stage, 'Service items listed by hospitals (9,959 of them)' AS step, CAST(433060 AS BIGINT) AS n, 'items' AS unit, 'Original lists untouched; cleaned copies written alongside' AS what_we_did, 'Team summary (Person 4)' AS source_file, 'Team summary (not in the repo)' AS number_is UNION ALL SELECT '6 Services and claims' AS stage, 'Items that were not about services (addresses, hours, history, staff counts)' AS step, CAST(33860 AS BIGINT) AS n, 'items' AS unit, 'Moved to their own column' AS what_we_did, 'Team summary (Person 4)' AS source_file, 'Team summary (not in the repo)' AS number_is UNION ALL SELECT '6 Services and claims' AS stage, 'Non-medical features (wheelchair access, parking)' AS step, CAST(3716 AS BIGINT) AS n, 'items' AS unit, 'Left out of the service evidence' AS what_we_did, 'Team summary (Person 4)' AS source_file, 'Team summary (not in the repo)' AS number_is UNION ALL SELECT '6 Services and claims' AS stage, 'Items describing a different hospital (on 1,416 hospitals)' AS step, CAST(3282 AS BIGINT) AS n, 'items' AS unit, 'Left out of the service evidence' AS what_we_did, 'Team summary (Person 4)' AS source_file, 'Team summary (not in the repo)' AS number_is UNION ALL SELECT '6 Services and claims' AS stage, 'Repeats and empty placeholders' AS step, CAST(4064 AS BIGINT) AS n, 'items' AS unit, 'Removed (3,058 repeats + 1,006 placeholders)' AS what_we_did, 'Team summary (Person 4)' AS source_file, 'Team summary (not in the repo)' AS number_is UNION ALL SELECT '6 Services and claims' AS stage, 'Claims lowered because the hospital appears only on booking or directory sites' AS step, CAST(965 AS BIGINT) AS n, 'claims' AS unit, 'Capped at Weak (1,818 hospitals are directory-only)' AS what_we_did, 'Team summary (Person 4)' AS source_file, 'Team summary (not in the repo)' AS number_is UNION ALL SELECT '6 Services and claims' AS stage, 'Claims on records that may contain another hospital (445 hospitals)' AS step, CAST(2264 AS BIGINT) AS n, 'claims' AS unit, 'Marked ''confirm first''' AS what_we_did, 'Team summary (Person 4)' AS source_file, 'Team summary (not in the repo)' AS number_is UNION ALL SELECT '6 Services and claims' AS stage, 'C-sections not stated but implied (obstetrics + theatre + anaesthesia)' AS step, CAST(339 AS BIGINT) AS n, 'hospitals' AS unit, 'Marked Inferred' AS what_we_did, 'Team summary (Person 4)' AS source_file, 'Team summary (not in the repo)' AS number_is UNION ALL SELECT '7 Government registry (HEM)' AS stage, 'Hospitals on the national PM-JAY list (HEM)' AS step, CAST(39737 AS BIGINT) AS n, 'hospitals' AS unit, 'Independent reference, not scraped from the web' AS what_we_did, 'scripts/out/registry_match_summary.json' AS source_file, 'Counted from the data' AS number_is UNION ALL SELECT '7 Government registry (HEM)' AS stage, 'Our hospitals verified against it' AS step, CAST(1452 AS BIGINT) AS n, 'hospitals' AS unit, 'Name + place agree, or phone + name agree' AS what_we_did, 'scripts/build_registry_match.py' AS source_file, 'Counted from the data' AS number_is UNION ALL SELECT '7 Government registry (HEM)' AS stage, 'Possible matches (weak, or phone shared)' AS step, CAST(531 AS BIGINT) AS n, 'hospitals' AS unit, 'Shown as unconfirmed; never used as proof' AS what_we_did, 'scripts/build_registry_match.py' AS source_file, 'Counted from the data' AS number_is UNION ALL SELECT '7 Government registry (HEM)' AS stage, 'Helpline numbers on the list ignored when matching by phone' AS step, CAST(129 AS BIGINT) AS n, 'numbers' AS unit, 'Ignored' AS what_we_did, 'scripts/out/registry_match_summary.json' AS source_file, 'From a report in the repo' AS number_is\n"
+   ]
+  },
+  {
+   "name": "ds_rows",
+   "displayName": "ds_rows",
+   "queryLines": [
+    "SELECT 10088 AS parsed, 88 AS fragments, 11 AS duplicates, 9989 AS final_rows\n"
+   ]
+  },
+  {
+   "name": "ds_flags",
+   "displayName": "ds_flags",
+   "queryLines": [
+    "WITH x AS (SELECT 'Where is it?' AS area, 'Coordinates over 100 km from the PIN-code centre' AS check_name, unique_id FROM workspace.facility_finder.fac_final WHERE flag_geo_mismatch_100km UNION ALL SELECT 'Where is it?' AS area, 'District in record disagrees with the PIN directory' AS check_name, unique_id FROM workspace.facility_finder.fac_final WHERE flag_district_conflict UNION ALL SELECT 'Where is it?' AS area, 'City disagrees with the PIN directory' AS check_name, unique_id FROM workspace.facility_finder.fac_final WHERE flag_city_mismatch UNION ALL SELECT 'Where is it?' AS area, 'Coordinates fall in a different state' AS check_name, unique_id FROM workspace.facility_finder.fac_final WHERE flag_coord_state_mismatch UNION ALL SELECT 'Where is it?' AS area, 'PIN code invalid' AS check_name, unique_id FROM workspace.facility_finder.fac_final WHERE flag_pin_invalid UNION ALL SELECT 'Where is it?' AS area, 'Coordinates outside India' AS check_name, unique_id FROM workspace.facility_finder.fac_final WHERE flag_coords_outside_india UNION ALL SELECT 'Is it one hospital?' AS area, 'Text names another hospital' AS check_name, unique_id FROM workspace.facility_finder.fac_final WHERE flag_names_other_hospital UNION ALL SELECT 'Is it one hospital?' AS area, 'Website shared with an unrelated hospital' AS check_name, unique_id FROM workspace.facility_finder.fac_final WHERE flag_site_shared_unrelated UNION ALL SELECT 'Is it one hospital?' AS area, 'Possible duplicate record' AS check_name, unique_id FROM workspace.facility_finder.fac_final WHERE flag_possible_duplicate UNION ALL SELECT 'Contact details' AS area, 'Phone area code conflicts with the state' AS check_name, unique_id FROM workspace.facility_finder.fac_final WHERE flag_phone_area_code_conflict UNION ALL SELECT 'Contact details' AS area, 'Official phone was a shared helpline' AS check_name, unique_id FROM workspace.facility_finder.fac_final WHERE flag_official_phone_shared_line UNION ALL SELECT 'Contact details' AS area, 'No reliable phone left' AS check_name, unique_id FROM workspace.facility_finder.fac_final WHERE flag_no_usable_phone UNION ALL SELECT 'Contact details' AS area, 'Email shared with an unrelated hospital' AS check_name, unique_id FROM workspace.facility_finder.fac_final WHERE flag_email_shared_unrelated UNION ALL SELECT 'Record quality' AS area, 'Item list cut off at exactly 50' AS check_name, unique_id FROM workspace.facility_finder.fac_final WHERE flag_list_truncated UNION ALL SELECT 'Record quality' AS area, 'Broken row repaired' AS check_name, unique_id FROM workspace.facility_finder.fac_final WHERE flag_repaired_record UNION ALL SELECT 'Record quality' AS area, 'Implausible doctor count' AS check_name, unique_id FROM workspace.facility_finder.fac_final WHERE flag_doctors_extreme)\n      SELECT x.area, x.check_name, s.facility_type, s.state FROM x JOIN workspace.facility_finder.facilities_serving s ON x.unique_id = s.facility_id\n      UNION ALL SELECT 'Is it one hospital?', 'Two or more merge red flags', facility_type, state FROM workspace.facility_finder.facilities_serving WHERE merge_suspect_score >= 2\n"
+   ]
+  },
+  {
+   "name": "ds_flag_rate",
+   "displayName": "ds_flag_rate",
+   "queryLines": [
+    "SELECT 'Coordinates over 100 km from the PIN-code centre' AS check_name, s.facility_type, round(100 * avg(CASE WHEN f.flag_geo_mismatch_100km THEN 1 ELSE 0 END), 1) AS pct_flagged FROM workspace.facility_finder.fac_final f JOIN workspace.facility_finder.facilities_serving s ON f.unique_id = s.facility_id WHERE s.facility_type IN ('hospital', 'clinic', 'dentist') GROUP BY s.facility_type UNION ALL SELECT 'District in record disagrees with the PIN directory' AS check_name, s.facility_type, round(100 * avg(CASE WHEN f.flag_district_conflict THEN 1 ELSE 0 END), 1) AS pct_flagged FROM workspace.facility_finder.fac_final f JOIN workspace.facility_finder.facilities_serving s ON f.unique_id = s.facility_id WHERE s.facility_type IN ('hospital', 'clinic', 'dentist') GROUP BY s.facility_type UNION ALL SELECT 'City disagrees with the PIN directory' AS check_name, s.facility_type, round(100 * avg(CASE WHEN f.flag_city_mismatch THEN 1 ELSE 0 END), 1) AS pct_flagged FROM workspace.facility_finder.fac_final f JOIN workspace.facility_finder.facilities_serving s ON f.unique_id = s.facility_id WHERE s.facility_type IN ('hospital', 'clinic', 'dentist') GROUP BY s.facility_type UNION ALL SELECT 'Coordinates fall in a different state' AS check_name, s.facility_type, round(100 * avg(CASE WHEN f.flag_coord_state_mismatch THEN 1 ELSE 0 END), 1) AS pct_flagged FROM workspace.facility_finder.fac_final f JOIN workspace.facility_finder.facilities_serving s ON f.unique_id = s.facility_id WHERE s.facility_type IN ('hospital', 'clinic', 'dentist') GROUP BY s.facility_type UNION ALL SELECT 'PIN code invalid' AS check_name, s.facility_type, round(100 * avg(CASE WHEN f.flag_pin_invalid THEN 1 ELSE 0 END), 1) AS pct_flagged FROM workspace.facility_finder.fac_final f JOIN workspace.facility_finder.facilities_serving s ON f.unique_id = s.facility_id WHERE s.facility_type IN ('hospital', 'clinic', 'dentist') GROUP BY s.facility_type UNION ALL SELECT 'Coordinates outside India' AS check_name, s.facility_type, round(100 * avg(CASE WHEN f.flag_coords_outside_india THEN 1 ELSE 0 END), 1) AS pct_flagged FROM workspace.facility_finder.fac_final f JOIN workspace.facility_finder.facilities_serving s ON f.unique_id = s.facility_id WHERE s.facility_type IN ('hospital', 'clinic', 'dentist') GROUP BY s.facility_type UNION ALL SELECT 'Text names another hospital' AS check_name, s.facility_type, round(100 * avg(CASE WHEN f.flag_names_other_hospital THEN 1 ELSE 0 END), 1) AS pct_flagged FROM workspace.facility_finder.fac_final f JOIN workspace.facility_finder.facilities_serving s ON f.unique_id = s.facility_id WHERE s.facility_type IN ('hospital', 'clinic', 'dentist') GROUP BY s.facility_type UNION ALL SELECT 'Website shared with an unrelated hospital' AS check_name, s.facility_type, round(100 * avg(CASE WHEN f.flag_site_shared_unrelated THEN 1 ELSE 0 END), 1) AS pct_flagged FROM workspace.facility_finder.fac_final f JOIN workspace.facility_finder.facilities_serving s ON f.unique_id = s.facility_id WHERE s.facility_type IN ('hospital', 'clinic', 'dentist') GROUP BY s.facility_type UNION ALL SELECT 'Possible duplicate record' AS check_name, s.facility_type, round(100 * avg(CASE WHEN f.flag_possible_duplicate THEN 1 ELSE 0 END), 1) AS pct_flagged FROM workspace.facility_finder.fac_final f JOIN workspace.facility_finder.facilities_serving s ON f.unique_id = s.facility_id WHERE s.facility_type IN ('hospital', 'clinic', 'dentist') GROUP BY s.facility_type UNION ALL SELECT 'Phone area code conflicts with the state' AS check_name, s.facility_type, round(100 * avg(CASE WHEN f.flag_phone_area_code_conflict THEN 1 ELSE 0 END), 1) AS pct_flagged FROM workspace.facility_finder.fac_final f JOIN workspace.facility_finder.facilities_serving s ON f.unique_id = s.facility_id WHERE s.facility_type IN ('hospital', 'clinic', 'dentist') GROUP BY s.facility_type UNION ALL SELECT 'Official phone was a shared helpline' AS check_name, s.facility_type, round(100 * avg(CASE WHEN f.flag_official_phone_shared_line THEN 1 ELSE 0 END), 1) AS pct_flagged FROM workspace.facility_finder.fac_final f JOIN workspace.facility_finder.facilities_serving s ON f.unique_id = s.facility_id WHERE s.facility_type IN ('hospital', 'clinic', 'dentist') GROUP BY s.facility_type UNION ALL SELECT 'No reliable phone left' AS check_name, s.facility_type, round(100 * avg(CASE WHEN f.flag_no_usable_phone THEN 1 ELSE 0 END), 1) AS pct_flagged FROM workspace.facility_finder.fac_final f JOIN workspace.facility_finder.facilities_serving s ON f.unique_id = s.facility_id WHERE s.facility_type IN ('hospital', 'clinic', 'dentist') GROUP BY s.facility_type UNION ALL SELECT 'Email shared with an unrelated hospital' AS check_name, s.facility_type, round(100 * avg(CASE WHEN f.flag_email_shared_unrelated THEN 1 ELSE 0 END), 1) AS pct_flagged FROM workspace.facility_finder.fac_final f JOIN workspace.facility_finder.facilities_serving s ON f.unique_id = s.facility_id WHERE s.facility_type IN ('hospital', 'clinic', 'dentist') GROUP BY s.facility_type UNION ALL SELECT 'Item list cut off at exactly 50' AS check_name, s.facility_type, round(100 * avg(CASE WHEN f.flag_list_truncated THEN 1 ELSE 0 END), 1) AS pct_flagged FROM workspace.facility_finder.fac_final f JOIN workspace.facility_finder.facilities_serving s ON f.unique_id = s.facility_id WHERE s.facility_type IN ('hospital', 'clinic', 'dentist') GROUP BY s.facility_type UNION ALL SELECT 'Broken row repaired' AS check_name, s.facility_type, round(100 * avg(CASE WHEN f.flag_repaired_record THEN 1 ELSE 0 END), 1) AS pct_flagged FROM workspace.facility_finder.fac_final f JOIN workspace.facility_finder.facilities_serving s ON f.unique_id = s.facility_id WHERE s.facility_type IN ('hospital', 'clinic', 'dentist') GROUP BY s.facility_type UNION ALL SELECT 'Implausible doctor count' AS check_name, s.facility_type, round(100 * avg(CASE WHEN f.flag_doctors_extreme THEN 1 ELSE 0 END), 1) AS pct_flagged FROM workspace.facility_finder.fac_final f JOIN workspace.facility_finder.facilities_serving s ON f.unique_id = s.facility_id WHERE s.facility_type IN ('hospital', 'clinic', 'dentist') GROUP BY s.facility_type\n"
+   ]
+  },
+  {
+   "name": "ds_addr",
+   "displayName": "ds_addr",
+   "queryLines": [
+    "SELECT concat('1 Address check: ', address_check) AS address_verdict,\n        concat('2 Final location: ', CASE location_trust WHEN 'verified' THEN 'verified on the map' WHEN 'verified_osm' THEN 'verified by OpenStreetMap' WHEN 'probable' THEN 'probable'\n          WHEN 'approximate_pin' THEN 'PIN-code centre only' WHEN 'approximate_district' THEN 'district centre only' ELSE 'unverified' END) AS final_location, count(*) AS n\n      FROM workspace.facility_finder.fac_final GROUP BY 1, 2\n"
+   ]
+  },
+  {
+   "name": "ds_phone_flow",
+   "displayName": "ds_phone_flow",
+   "queryLines": [
+    "WITH t AS (SELECT sum(n_phone_valid) + sum(n_phone_invalid) AS checked, sum(n_phone_usable) AS usable FROM workspace.facility_finder.fac_final)\n      SELECT 'Numbers checked' AS step1, 'Usable' AS step2, 'Kept as the hospital phone' AS step3, usable AS n FROM t\n      UNION ALL SELECT 'Numbers checked', 'Set aside', reason, numbers FROM VALUES\n        ('Booking or aggregator line', 1175), ('Shared with an unrelated hospital', 1057), ('Landline from the wrong state', 229),\n        ('Fake number', 37), ('Invalid or foreign', 60), ('Other', 57) AS r(reason, numbers)\n"
+   ]
+  },
+  {
+   "name": "ds_phone_status",
+   "displayName": "ds_phone_status",
+   "queryLines": [
+    "SELECT CASE official_phone_status WHEN 'ok' THEN 'Fine' WHEN '' THEN 'None listed' WHEN 'aggregator_line' THEN 'Booking or aggregator line'\n        WHEN 'shared_unrelated' THEN 'Shared with an unrelated hospital' WHEN 'chain_helpline' THEN 'Chain helpline' WHEN 'area_code_conflict' THEN 'Area code from another state'\n        WHEN 'placeholder' THEN 'Fake number' ELSE 'Foreign number' END AS status, count(*) AS n FROM workspace.facility_finder.fac_final GROUP BY 1\n"
+   ]
+  },
+  {
+   "name": "ds_numcheck",
+   "displayName": "ds_numcheck",
+   "queryLines": [
+    "SELECT 'Founding year' AS field, CASE WHEN year_check LIKE 'corrected%' OR year_check LIKE 'filled%' THEN '2 Corrected or filled from a source'\n          WHEN year_check LIKE 'confirmed%' OR year_check LIKE 'consistent%' OR year_check LIKE 'close to%' THEN '1 Confirmed or consistent'\n          WHEN year_check LIKE 'disputed%' OR year_check LIKE 'conflicts%' OR year_check LIKE 'differs%' OR year_check LIKE 'web: contradicted%' THEN '3 Disputed or contradicted'\n          WHEN year_check LIKE 'missing%' THEN '5 Missing (never guessed)' ELSE '4 Could not be checked' END AS result, count(*) AS n FROM workspace.facility_finder.fac_final GROUP BY 1, 2 UNION ALL SELECT 'Beds' AS field, CASE WHEN capacity_check LIKE 'corrected%' OR capacity_check LIKE 'filled%' THEN '2 Corrected or filled from a source'\n          WHEN capacity_check LIKE 'confirmed%' OR capacity_check LIKE 'consistent%' OR capacity_check LIKE 'close to%' THEN '1 Confirmed or consistent'\n          WHEN capacity_check LIKE 'disputed%' OR capacity_check LIKE 'conflicts%' OR capacity_check LIKE 'differs%' OR capacity_check LIKE 'web: contradicted%' THEN '3 Disputed or contradicted'\n          WHEN capacity_check LIKE 'missing%' THEN '5 Missing (never guessed)' ELSE '4 Could not be checked' END AS result, count(*) AS n FROM workspace.facility_finder.fac_final GROUP BY 1, 2 UNION ALL SELECT 'Doctors' AS field, CASE WHEN doctors_check LIKE 'corrected%' OR doctors_check LIKE 'filled%' THEN '2 Corrected or filled from a source'\n          WHEN doctors_check LIKE 'confirmed%' OR doctors_check LIKE 'consistent%' OR doctors_check LIKE 'close to%' THEN '1 Confirmed or consistent'\n          WHEN doctors_check LIKE 'disputed%' OR doctors_check LIKE 'conflicts%' OR doctors_check LIKE 'differs%' OR doctors_check LIKE 'web: contradicted%' THEN '3 Disputed or contradicted'\n          WHEN doctors_check LIKE 'missing%' THEN '5 Missing (never guessed)' ELSE '4 Could not be checked' END AS result, count(*) AS n FROM workspace.facility_finder.fac_final GROUP BY 1, 2\n"
+   ]
+  },
+  {
+   "name": "ds_recog",
+   "displayName": "ds_recog",
+   "queryLines": [
+    "SELECT CASE recognition_tier WHEN 'high' THEN '1 High' WHEN 'moderate' THEN '2 Moderate' WHEN 'some' THEN '3 Some' ELSE '4 No evidence found (unknown, not bad)' END AS tier, count(*) AS n FROM workspace.facility_finder.fac_final GROUP BY 1\n"
+   ]
+  },
+  {
+   "name": "ds_webchecks",
+   "displayName": "ds_webchecks",
+   "queryLines": [
+    "SELECT * FROM VALUES\n        ('KGMU Lucknow', '4,000 beds', 'Confirmed', 'KGMU NIRF 2025 submission: 4,000 beds'),\n        ('INHS Asvini, Mumbai', 'Founded 1756', 'Confirmed', 'Indian Navy / Wikipedia: King''s Seamen''s Hospital, Colaba, 1756'),\n        ('Harsh Hospital, Motihari', '200,000 beds', 'Contradicted', 'No source; the only figure found (30 beds) is a different Harsh Hospital'),\n        ('Nithya Hospital, Dharmapuri', '15,000 doctors', 'Contradicted', 'Small hospital with 2 listed specialties'),\n        ('KIMS, Hyderabad', '6,000 doctors', 'Contradicted', 'Whole group is about 979 doctors; branches 51 to 114'),\n        ('Wockhardt, Nagpur', '1,400 doctors', 'Contradicted', 'NABH certificate: 118 beds; directories 41 to 150 doctors'),\n        ('Scientific Pathology, Agra', '5,000 doctors', 'Contradicted', '3 labs and 11 collection centres'),\n        ('Vijaya Diagnostic, Visakhapatnam', '3,000 doctors', 'Contradicted', 'Annual report: 300+ doctors across all 151 centres'),\n        ('Asian Eye Hospital, Pune', '1,100 doctors', 'Contradicted', 'Single eye hospital; about 2 named doctors'),\n        ('Megavision, Pimpri', '3,000 doctors', 'Contradicted', 'Two diagnostic centres'),\n        ('Sahyadri, Pune', '2,000 doctors', 'Chain-wide total', 'Own site: 2,000+ clinicians across the chain'),\n        ('Medall Diagnostics, Chennai', '2,500 doctors', 'Chain-wide total', 'National chain; no doctor count published'),\n        ('Changethu Ayurveda', 'Founded 1723', 'Unverified', 'Family tradition from the 17th century; no source gives 1723'),\n        ('Narhari, Vadodara', '2,860 doctors', 'Unverified', 'No public figure'),\n        ('Nova IVF, Bengaluru', '1,500 doctors', 'Unverified', 'Chain of 62 to 83+ centres; no doctor count')\n      AS t(facility, claim, verdict, what_sources_say)\n"
+   ]
+  },
+  {
+   "name": "ds_tiers",
+   "displayName": "ds_tiers",
+   "queryLines": [
+    "SELECT 'Moderate or stronger evidence' AS tier, count(DISTINCT facility_id) AS hospitals FROM workspace.facility_finder.facility_claims WHERE level IN ('Strong', 'Moderate')\n      UNION ALL SELECT 'Only weak or inferred claims', count(DISTINCT facility_id) - (SELECT count(DISTINCT facility_id) FROM workspace.facility_finder.facility_claims WHERE level IN ('Strong', 'Moderate')) FROM workspace.facility_finder.facility_claims\n      UNION ALL SELECT 'No usable evidence (shown as Unknown)', count(*) FROM workspace.facility_finder.facilities_serving s WHERE NOT EXISTS (SELECT 1 FROM workspace.facility_finder.facility_claims c WHERE c.facility_id = s.facility_id)\n"
+   ]
+  }
+ ],
+ "pages": [
+  {
+   "name": "trust",
+   "displayName": "1. Can raw data be trusted?",
+   "pageType": "PAGE_TYPE_CANVAS",
+   "layoutVersion": "GRID_V1",
+   "layout": [
+    {
+     "widget": {
+      "name": "t1",
+      "multilineTextboxSpec": {
+       "lines": [
+        "## 1. The raw records cannot be taken at face value\n",
+        "Most of the data was scraped from web text. A facility *saying* it offers a service is not the same as offering it. So we scored every record on **where it is**, **whether it is really one hospital**, and **how well its claims are evidenced**.\n"
+       ]
+      }
+     },
+     "position": {
+      "x": 0,
+      "y": 0,
+      "width": 12,
+      "height": 2
+     }
+    },
+    {
+     "widget": {
+      "name": "f_state1",
+      "queries": [
+       {
+        "name": "f_state1_q0",
+        "query": {
+         "datasetName": "ds_fac",
+         "fields": [
+          {
+           "name": "state",
+           "expression": "`state`"
+          }
+         ],
+         "disaggregated": false
+        }
+       },
+       {
+        "name": "f_state1_q1",
+        "query": {
+         "datasetName": "ds_funnel",
+         "fields": [
+          {
+           "name": "state",
+           "expression": "`state`"
+          }
+         ],
+         "disaggregated": false
+        }
+       }
+      ],
+      "spec": {
+       "version": 2,
+       "widgetType": "filter-multi-select",
+       "encodings": {
+        "fields": [
+         {
+          "fieldName": "state",
+          "displayName": "State (optional)",
+          "queryName": "f_state1_q0"
+         },
+         {
+          "fieldName": "state",
+          "displayName": "State (optional)",
+          "queryName": "f_state1_q1"
+         }
+        ]
+       },
+       "frame": {
+        "showTitle": true,
+        "title": "State (optional)"
+       }
+      }
+     },
+     "position": {
+      "x": 0,
+      "y": 2,
+      "width": 4,
+      "height": 2
+     }
+    },
+    {
+     "widget": {
+      "name": "k_all",
+      "queries": [
+       {
+        "name": "main_query",
+        "query": {
+         "datasetName": "ds_fac",
+         "fields": [
+          {
+           "name": "count(facility_id)",
+           "expression": "COUNT(`facility_id`)"
+          }
+         ],
+         "disaggregated": false
+        }
+       }
+      ],
+      "spec": {
+       "version": 2,
+       "widgetType": "counter",
+       "encodings": {
+        "value": {
+         "fieldName": "count(facility_id)",
+         "displayName": "Facilities in the data"
+        }
+       },
+       "frame": {
+        "showTitle": true,
+        "title": "Facilities in the data"
+       }
+      }
+     },
+     "position": {
+      "x": 0,
+      "y": 4,
+      "width": 3,
+      "height": 3
+     }
+    },
+    {
+     "widget": {
+      "name": "k_merge",
+      "queries": [
+       {
+        "name": "main_query",
+        "query": {
+         "datasetName": "ds_fac",
+         "fields": [
+          {
+           "name": "sum(is_merge)",
+           "expression": "SUM(`is_merge`)"
+          }
+         ],
+         "disaggregated": false
+        }
+       }
+      ],
+      "spec": {
+       "version": 2,
+       "widgetType": "counter",
+       "encodings": {
+        "value": {
+         "fieldName": "sum(is_merge)",
+         "displayName": "May mix several hospitals"
+        }
+       },
+       "frame": {
+        "showTitle": true,
+        "title": "May mix several hospitals",
+        "showDescription": true,
+        "description": "Two or more red flags that one record blends different facilities"
+       }
+      }
+     },
+     "position": {
+      "x": 3,
+      "y": 4,
+      "width": 3,
+      "height": 3
+     }
+    },
+    {
+     "widget": {
+      "name": "k_loc",
+      "queries": [
+       {
+        "name": "main_query",
+        "query": {
+         "datasetName": "ds_fac",
+         "fields": [
+          {
+           "name": "sum(loc_weak)",
+           "expression": "SUM(`loc_weak`)"
+          }
+         ],
+         "disaggregated": false
+        }
+       }
+      ],
+      "spec": {
+       "version": 2,
+       "widgetType": "counter",
+       "encodings": {
+        "value": {
+         "fieldName": "sum(loc_weak)",
+         "displayName": "Position not verified"
+        }
+       },
+       "frame": {
+        "showTitle": true,
+        "title": "Position not verified",
+        "showDescription": true,
+        "description": "Only the PIN-code centre, or nothing to check the coordinates against"
+       }
+      }
+     },
+     "position": {
+      "x": 6,
+      "y": 4,
+      "width": 3,
+      "height": 3
+     }
+    },
+    {
+     "widget": {
+      "name": "k_pass",
+      "queries": [
+       {
+        "name": "main_query",
+        "query": {
+         "datasetName": "ds_fac",
+         "fields": [
+          {
+           "name": "sum(passes)",
+           "expression": "SUM(`passes`)"
+          }
+         ],
+         "disaggregated": false
+        }
+       }
+      ],
+      "spec": {
+       "version": 2,
+       "widgetType": "counter",
+       "encodings": {
+        "value": {
+         "fieldName": "sum(passes)",
+         "displayName": "Pass every check"
+        }
+       },
+       "frame": {
+        "showTitle": true,
+        "title": "Pass every check",
+        "showDescription": true,
+        "description": "Position checked, not a suspected merge, trust score 60 or more"
+       }
+      }
+     },
+     "position": {
+      "x": 9,
+      "y": 4,
+      "width": 3,
+      "height": 3
+     }
+    },
+    {
+     "widget": {
+      "name": "b_funnel",
+      "queries": [
+       {
+        "name": "main_query",
+        "query": {
+         "datasetName": "ds_funnel",
+         "fields": [
+          {
+           "name": "stage",
+           "expression": "`stage`"
+          },
+          {
+           "name": "count(facility_id)",
+           "expression": "COUNT(`facility_id`)"
+          }
+         ],
+         "disaggregated": false
+        }
+       }
+      ],
+      "spec": {
+       "version": 3,
+       "widgetType": "bar",
+       "encodings": {
+        "x": {
+         "fieldName": "count(facility_id)",
+         "scale": {
+          "type": "quantitative"
+         },
+         "displayName": "Facilities"
+        },
+        "y": {
+         "fieldName": "stage",
+         "scale": {
+          "type": "categorical",
+          "sort": {
+           "by": "custom-order",
+           "orderedValues": [
+            "1 All records",
+            "2 Position checked",
+            "3 Not a suspected merge",
+            "4 Trust score 60+",
+            "5 Has a Strong claim"
+           ]
+          }
+         },
+         "displayName": "Check"
+        }
+       },
+       "frame": {
+        "showTitle": true,
+        "title": "How many records survive each check",
+        "showDescription": true,
+        "description": "Each bar adds one more check to the one above it"
+       }
+      }
+     },
+     "position": {
+      "x": 0,
+      "y": 7,
+      "width": 6,
+      "height": 7
+     }
+    },
+    {
+     "widget": {
+      "name": "b_loc",
+      "queries": [
+       {
+        "name": "main_query",
+        "query": {
+         "datasetName": "ds_fac",
+         "fields": [
+          {
+           "name": "location_label",
+           "expression": "`location_label`"
+          },
+          {
+           "name": "count(facility_id)",
+           "expression": "COUNT(`facility_id`)"
+          },
+          {
+           "name": "location_label",
+           "expression": "`location_label`"
+          }
+         ],
+         "disaggregated": false
+        }
+       }
+      ],
+      "spec": {
+       "version": 3,
+       "widgetType": "bar",
+       "encodings": {
+        "x": {
+         "fieldName": "location_label",
+         "scale": {
+          "type": "categorical",
+          "sort": {
+           "by": "custom-order",
+           "orderedValues": [
+            "Verified on the map",
+            "Verified (OpenStreetMap)",
+            "Probable",
+            "Only the PIN-code centre",
+            "Unverified"
+           ]
+          }
+         },
+         "displayName": "Position"
+        },
+        "y": {
+         "fieldName": "count(facility_id)",
+         "scale": {
+          "type": "quantitative"
+         },
+         "displayName": "Facilities"
+        },
+        "color": {
+         "fieldName": "location_label",
+         "scale": {
+          "type": "categorical",
+          "mappings": [
+           {
+            "value": "Verified on the map",
+            "color": "#009E73"
+           },
+           {
+            "value": "Verified (OpenStreetMap)",
+            "color": "#009E73"
+           },
+           {
+            "value": "Probable",
+            "color": "#56B4E9"
+           },
+           {
+            "value": "Only the PIN-code centre",
+            "color": "#E69F00"
+           },
+           {
+            "value": "Unverified",
+            "color": "#D55E00"
+           }
+          ]
+         },
+         "displayName": "location_label"
+        }
+       },
+       "frame": {
+        "showTitle": true,
+        "title": "Can we trust the map position?"
+       }
+      }
+     },
+     "position": {
+      "x": 6,
+      "y": 7,
+      "width": 6,
+      "height": 7
+     }
+    },
+    {
+     "widget": {
+      "name": "t1b",
+      "multilineTextboxSpec": {
+       "lines": [
+        "### A record that looks confident but is not\n",
+        "Each row has a **Strong** claim, but the cited page does not name this facility and the record carries several merge red flags, so the claim may belong to another hospital. This is what the checks above remove from the ranking."
+       ]
+      }
+     },
+     "position": {
+      "x": 0,
+      "y": 14,
+      "width": 12,
+      "height": 2
+     }
+    },
+    {
+     "widget": {
+      "name": "tb_ex",
+      "queries": [
+       {
+        "name": "main_query",
+        "query": {
+         "datasetName": "ds_examples",
+         "fields": [
+          {
+           "name": "name",
+           "expression": "`name`"
+          },
+          {
+           "name": "listed_city",
+           "expression": "`listed_city`"
+          },
+          {
+           "name": "state_on_map",
+           "expression": "`state_on_map`"
+          },
+          {
+           "name": "merge_red_flags",
+           "expression": "`merge_red_flags`"
+          },
+          {
+           "name": "facility_trust",
+           "expression": "`facility_trust`"
+          },
+          {
+           "name": "strong_claim",
+           "expression": "`strong_claim`"
+          },
+          {
+           "name": "quote",
+           "expression": "`quote`"
+          },
+          {
+           "name": "source_site",
+           "expression": "`source_site`"
+          }
+         ],
+         "disaggregated": true
+        }
+       }
+      ],
+      "spec": {
+       "version": 2,
+       "widgetType": "table",
+       "encodings": {
+        "columns": [
+         {
+          "fieldName": "name",
+          "displayName": "Facility"
+         },
+         {
+          "fieldName": "listed_city",
+          "displayName": "City in record"
+         },
+         {
+          "fieldName": "state_on_map",
+          "displayName": "State where the pin lands"
+         },
+         {
+          "fieldName": "merge_red_flags",
+          "displayName": "Merge red flags"
+         },
+         {
+          "fieldName": "facility_trust",
+          "displayName": "Trust (0-100)"
+         },
+         {
+          "fieldName": "strong_claim",
+          "displayName": "Strong claim"
+         },
+         {
+          "fieldName": "quote",
+          "displayName": "Quoted text"
+         },
+         {
+          "fieldName": "source_site",
+          "displayName": "Source site"
+         }
+        ]
+       },
+       "frame": {
+        "showTitle": true,
+        "title": "Strong claims that we do not trust"
+       }
+      }
+     },
+     "position": {
+      "x": 0,
+      "y": 16,
+      "width": 12,
+      "height": 7
+     }
+    }
+   ]
+  },
+  {
+   "name": "trace",
+   "displayName": "2. One question, traced",
+   "pageType": "PAGE_TYPE_CANVAS",
+   "layoutVersion": "GRID_V1",
+   "layout": [
+    {
+     "widget": {
+      "name": "t2",
+      "multilineTextboxSpec": {
+       "lines": [
+        "## 2. One question, traced end to end\n",
+        "Pick a service and a state in the filters. Every chart on this page re-draws. Evidence score = 40% claim strength + 40% facility trust + 20% position trust, minus a merge penalty. *Distance is not included here: the app adds live travel time and a Monte-Carlo P(best).*\n"
+       ]
+      }
+     },
+     "position": {
+      "x": 0,
+      "y": 0,
+      "width": 12,
+      "height": 2
+     }
+    },
+    {
+     "widget": {
+      "name": "f_service",
+      "queries": [
+       {
+        "name": "f_service_q0",
+        "query": {
+         "datasetName": "ds_trace_funnel",
+         "fields": [
+          {
+           "name": "service",
+           "expression": "`service`"
+          }
+         ],
+         "disaggregated": false
+        }
+       },
+       {
+        "name": "f_service_q1",
+        "query": {
+         "datasetName": "ds_map",
+         "fields": [
+          {
+           "name": "service",
+           "expression": "`service`"
+          }
+         ],
+         "disaggregated": false
+        }
+       },
+       {
+        "name": "f_service_q2",
+        "query": {
+         "datasetName": "ds_top",
+         "fields": [
+          {
+           "name": "service",
+           "expression": "`service`"
+          }
+         ],
+         "disaggregated": false
+        }
+       },
+       {
+        "name": "f_service_q3",
+        "query": {
+         "datasetName": "ds_break",
+         "fields": [
+          {
+           "name": "service",
+           "expression": "`service`"
+          }
+         ],
+         "disaggregated": false
+        }
+       }
+      ],
+      "spec": {
+       "version": 2,
+       "widgetType": "filter-single-select",
+       "encodings": {
+        "fields": [
+         {
+          "fieldName": "service",
+          "displayName": "Service",
+          "queryName": "f_service_q0"
+         },
+         {
+          "fieldName": "service",
+          "displayName": "Service",
+          "queryName": "f_service_q1"
+         },
+         {
+          "fieldName": "service",
+          "displayName": "Service",
+          "queryName": "f_service_q2"
+         },
+         {
+          "fieldName": "service",
+          "displayName": "Service",
+          "queryName": "f_service_q3"
+         }
+        ]
+       },
+       "frame": {
+        "showTitle": true,
+        "title": "Service"
+       },
+       "selection": {
+        "defaultSelection": {
+         "values": {
+          "dataType": "STRING",
+          "values": [
+           {
+            "value": "dialysis"
+           }
+          ]
+         }
+        }
+       }
+      }
+     },
+     "position": {
+      "x": 0,
+      "y": 2,
+      "width": 4,
+      "height": 2
+     }
+    },
+    {
+     "widget": {
+      "name": "f_state2",
+      "queries": [
+       {
+        "name": "f_state2_q0",
+        "query": {
+         "datasetName": "ds_trace_funnel",
+         "fields": [
+          {
+           "name": "state",
+           "expression": "`state`"
+          }
+         ],
+         "disaggregated": false
+        }
+       },
+       {
+        "name": "f_state2_q1",
+        "query": {
+         "datasetName": "ds_map",
+         "fields": [
+          {
+           "name": "state",
+           "expression": "`state`"
+          }
+         ],
+         "disaggregated": false
+        }
+       },
+       {
+        "name": "f_state2_q2",
+        "query": {
+         "datasetName": "ds_top",
+         "fields": [
+          {
+           "name": "state",
+           "expression": "`state`"
+          }
+         ],
+         "disaggregated": false
+        }
+       },
+       {
+        "name": "f_state2_q3",
+        "query": {
+         "datasetName": "ds_break",
+         "fields": [
+          {
+           "name": "state",
+           "expression": "`state`"
+          }
+         ],
+         "disaggregated": false
+        }
+       }
+      ],
+      "spec": {
+       "version": 2,
+       "widgetType": "filter-multi-select",
+       "encodings": {
+        "fields": [
+         {
+          "fieldName": "state",
+          "displayName": "State",
+          "queryName": "f_state2_q0"
+         },
+         {
+          "fieldName": "state",
+          "displayName": "State",
+          "queryName": "f_state2_q1"
+         },
+         {
+          "fieldName": "state",
+          "displayName": "State",
+          "queryName": "f_state2_q2"
+         },
+         {
+          "fieldName": "state",
+          "displayName": "State",
+          "queryName": "f_state2_q3"
+         }
+        ]
+       },
+       "frame": {
+        "showTitle": true,
+        "title": "State"
+       },
+       "selection": {
+        "defaultSelection": {
+         "values": {
+          "dataType": "STRING",
+          "values": [
+           {
+            "value": "TAMIL NADU"
+           }
+          ]
+         }
+        }
+       }
+      }
+     },
+     "position": {
+      "x": 4,
+      "y": 2,
+      "width": 4,
+      "height": 2
+     }
+    },
+    {
+     "widget": {
+      "name": "b_tf",
+      "queries": [
+       {
+        "name": "main_query",
+        "query": {
+         "datasetName": "ds_trace_funnel",
+         "fields": [
+          {
+           "name": "stage",
+           "expression": "`stage`"
+          },
+          {
+           "name": "count(facility_id)",
+           "expression": "COUNT(`facility_id`)"
+          }
+         ],
+         "disaggregated": false
+        }
+       }
+      ],
+      "spec": {
+       "version": 3,
+       "widgetType": "bar",
+       "encodings": {
+        "x": {
+         "fieldName": "count(facility_id)",
+         "scale": {
+          "type": "quantitative"
+         },
+         "displayName": "Facilities"
+        },
+        "y": {
+         "fieldName": "stage",
+         "scale": {
+          "type": "categorical",
+          "sort": {
+           "by": "custom-order",
+           "orderedValues": [
+            "1 Claims this service",
+            "2 Evidence Strong or Moderate",
+            "3 Position checked",
+            "4 Not a suspected merge",
+            "5 Trust score 60+"
+           ]
+          }
+         },
+         "displayName": "Check"
+        }
+       },
+       "frame": {
+        "showTitle": true,
+        "title": "From every claim to the ones we would recommend"
+       }
+      }
+     },
+     "position": {
+      "x": 0,
+      "y": 4,
+      "width": 6,
+      "height": 7
+     }
+    },
+    {
+     "widget": {
+      "name": "m_trace",
+      "queries": [
+       {
+        "name": "main_query",
+        "query": {
+         "datasetName": "ds_map",
+         "fields": [
+          {
+           "name": "lat",
+           "expression": "`lat`"
+          },
+          {
+           "name": "lon",
+           "expression": "`lon`"
+          },
+          {
+           "name": "verdict",
+           "expression": "`verdict`"
+          }
+         ],
+         "disaggregated": true
+        }
+       }
+      ],
+      "spec": {
+       "version": 2,
+       "widgetType": "symbol-map",
+       "encodings": {
+        "coordinates": {
+         "latitude": {
+          "fieldName": "lat"
+         },
+         "longitude": {
+          "fieldName": "lon"
+         }
+        },
+        "color": {
+         "fieldName": "verdict",
+         "scale": {
+          "type": "categorical",
+          "mappings": [
+           {
+            "value": "Passes all checks",
+            "color": "#009E73"
+           },
+           {
+            "value": "Claim ok, but a check failed",
+            "color": "#E69F00"
+           },
+           {
+            "value": "Weak or contradicted",
+            "color": "#9AA5B1"
+           }
+          ]
+         }
+        }
+       },
+       "mark": {
+        "opacity": 0.8
+       },
+       "frame": {
+        "showTitle": true,
+        "title": "Where they are: green passes every check"
+       }
+      }
+     },
+     "position": {
+      "x": 6,
+      "y": 4,
+      "width": 6,
+      "height": 7
+     }
+    },
+    {
+     "widget": {
+      "name": "tb_top",
+      "queries": [
+       {
+        "name": "main_query",
+        "query": {
+         "datasetName": "ds_top",
+         "fields": [
+          {
+           "name": "rank",
+           "expression": "`rank`"
+          },
+          {
+           "name": "name",
+           "expression": "`name`"
+          },
+          {
+           "name": "city",
+           "expression": "`city`"
+          },
+          {
+           "name": "level",
+           "expression": "`level`"
+          },
+          {
+           "name": "evidence_score",
+           "expression": "`evidence_score`"
+          },
+          {
+           "name": "facility_trust",
+           "expression": "`facility_trust`"
+          },
+          {
+           "name": "location_label",
+           "expression": "`location_label`"
+          },
+          {
+           "name": "quote",
+           "expression": "`quote`"
+          },
+          {
+           "name": "source_site",
+           "expression": "`source_site`"
+          },
+          {
+           "name": "source_names_facility",
+           "expression": "`source_names_facility`"
+          }
+         ],
+         "disaggregated": true,
+         "orders": [
+          {
+           "direction": "ASC",
+           "expression": "`rank`"
+          }
+         ]
+        }
+       }
+      ],
+      "spec": {
+       "version": 2,
+       "widgetType": "table",
+       "encodings": {
+        "columns": [
+         {
+          "fieldName": "rank",
+          "displayName": "#"
+         },
+         {
+          "fieldName": "name",
+          "displayName": "Facility"
+         },
+         {
+          "fieldName": "city",
+          "displayName": "City"
+         },
+         {
+          "fieldName": "level",
+          "displayName": "Evidence"
+         },
+         {
+          "fieldName": "evidence_score",
+          "displayName": "Score"
+         },
+         {
+          "fieldName": "facility_trust",
+          "displayName": "Trust"
+         },
+         {
+          "fieldName": "location_label",
+          "displayName": "Position"
+         },
+         {
+          "fieldName": "quote",
+          "displayName": "Quote from the facility's own text"
+         },
+         {
+          "fieldName": "source_site",
+          "displayName": "Source"
+         },
+         {
+          "fieldName": "source_names_facility",
+          "displayName": "Source names the facility?"
+         }
+        ]
+       },
+       "frame": {
+        "showTitle": true,
+        "title": "Top picks, with the quote that justifies each"
+       }
+      }
+     },
+     "position": {
+      "x": 0,
+      "y": 11,
+      "width": 12,
+      "height": 8
+     }
+    },
+    {
+     "widget": {
+      "name": "b_break",
+      "queries": [
+       {
+        "name": "main_query",
+        "query": {
+         "datasetName": "ds_break",
+         "fields": [
+          {
+           "name": "facility",
+           "expression": "`facility`"
+          },
+          {
+           "name": "sum(points)",
+           "expression": "SUM(`points`)"
+          },
+          {
+           "name": "component",
+           "expression": "`component`"
+          }
+         ],
+         "disaggregated": false
+        }
+       }
+      ],
+      "spec": {
+       "version": 3,
+       "widgetType": "bar",
+       "encodings": {
+        "x": {
+         "fieldName": "sum(points)",
+         "scale": {
+          "type": "quantitative"
+         },
+         "displayName": "Points"
+        },
+        "y": {
+         "fieldName": "facility",
+         "scale": {
+          "type": "categorical"
+         },
+         "displayName": "Facility"
+        },
+        "color": {
+         "fieldName": "component",
+         "scale": {
+          "type": "categorical",
+          "mappings": [
+           {
+            "value": "Claim strength",
+            "color": "#0072B2"
+           },
+           {
+            "value": "Facility trust",
+            "color": "#009E73"
+           },
+           {
+            "value": "Location trust",
+            "color": "#56B4E9"
+           },
+           {
+            "value": "Merge-suspect penalty",
+            "color": "#D55E00"
+           }
+          ]
+         },
+         "displayName": "component"
+        }
+       },
+       "mark": {
+        "layout": "stack"
+       },
+       "frame": {
+        "showTitle": true,
+        "title": "Why #1 beats #5: what each score is made of"
+       }
+      }
+     },
+     "position": {
+      "x": 0,
+      "y": 19,
+      "width": 12,
+      "height": 7
+     }
+    }
+   ]
+  },
+  {
+   "name": "evidence",
+   "displayName": "3. Is the evidence correct?",
+   "pageType": "PAGE_TYPE_CANVAS",
+   "layoutVersion": "GRID_V1",
+   "layout": [
+    {
+     "widget": {
+      "name": "t3",
+      "multilineTextboxSpec": {
+       "lines": [
+        "## 3. How do we know the evidence is right?\n",
+        "We checked a sample of claims by asking a language model whether the **quoted text really supports the claim**. Strong claims hold up best: 72% are supported by their own quote and only 6% are not.\n"
+       ]
+      }
+     },
+     "position": {
+      "x": 0,
+      "y": 0,
+      "width": 12,
+      "height": 2
+     }
+    },
+    {
+     "widget": {
+      "name": "b_audit",
+      "queries": [
+       {
+        "name": "main_query",
+        "query": {
+         "datasetName": "ds_audit",
+         "fields": [
+          {
+           "name": "level",
+           "expression": "`level`"
+          },
+          {
+           "name": "sum(share)",
+           "expression": "SUM(`share`)"
+          },
+          {
+           "name": "verdict",
+           "expression": "`verdict`"
+          }
+         ],
+         "disaggregated": false
+        }
+       }
+      ],
+      "spec": {
+       "version": 3,
+       "widgetType": "bar",
+       "encodings": {
+        "x": {
+         "fieldName": "level",
+         "scale": {
+          "type": "categorical",
+          "sort": {
+           "by": "custom-order",
+           "orderedValues": [
+            "Strong",
+            "Moderate",
+            "Weak"
+           ]
+          }
+         },
+         "displayName": "Evidence level"
+        },
+        "y": {
+         "fieldName": "sum(share)",
+         "scale": {
+          "type": "quantitative"
+         },
+         "displayName": "Share of audited claims",
+         "format": {
+          "type": "number-percent",
+          "decimalPlaces": {
+           "type": "max",
+           "places": 0
+          }
+         }
+        },
+        "color": {
+         "fieldName": "verdict",
+         "scale": {
+          "type": "categorical",
+          "mappings": [
+           {
+            "value": "Quote supports the claim",
+            "color": "#009E73"
+           },
+           {
+            "value": "Quote does not support it",
+            "color": "#D55E00"
+           },
+           {
+            "value": "Unclear",
+            "color": "#9AA5B1"
+           }
+          ]
+         },
+         "displayName": "verdict"
+        }
+       },
+       "mark": {
+        "layout": "stack-100"
+       },
+       "frame": {
+        "showTitle": true,
+        "title": "Does the quote support the claim? (150 audited per level)"
+       }
+      }
+     },
+     "position": {
+      "x": 0,
+      "y": 2,
+      "width": 6,
+      "height": 7
+     }
+    },
+    {
+     "widget": {
+      "name": "b_lm",
+      "queries": [
+       {
+        "name": "main_query",
+        "query": {
+         "datasetName": "ds_levelmerge",
+         "fields": [
+          {
+           "name": "level",
+           "expression": "`level`"
+          },
+          {
+           "name": "sum(n)",
+           "expression": "SUM(`n`)"
+          },
+          {
+           "name": "kind",
+           "expression": "`kind`"
+          }
+         ],
+         "disaggregated": false
+        }
+       }
+      ],
+      "spec": {
+       "version": 3,
+       "widgetType": "bar",
+       "encodings": {
+        "x": {
+         "fieldName": "level",
+         "scale": {
+          "type": "categorical",
+          "sort": {
+           "by": "custom-order",
+           "orderedValues": [
+            "Strong",
+            "Moderate",
+            "Inferred",
+            "Weak",
+            "Contradicted"
+           ]
+          }
+         },
+         "displayName": "Evidence level"
+        },
+        "y": {
+         "fieldName": "sum(n)",
+         "scale": {
+          "type": "quantitative"
+         },
+         "displayName": "Share of claims",
+         "format": {
+          "type": "number-percent",
+          "decimalPlaces": {
+           "type": "max",
+           "places": 0
+          }
+         }
+        },
+        "color": {
+         "fieldName": "kind",
+         "scale": {
+          "type": "categorical",
+          "mappings": [
+           {
+            "value": "on a clean record",
+            "color": "#009E73"
+           },
+           {
+            "value": "on a record that may mix facilities",
+            "color": "#D55E00"
+           }
+          ]
+         },
+         "displayName": "kind"
+        }
+       },
+       "mark": {
+        "layout": "stack-100"
+       },
+       "frame": {
+        "showTitle": true,
+        "title": "Strong claims on records that may blend several hospitals"
+       }
+      }
+     },
+     "position": {
+      "x": 6,
+      "y": 2,
+      "width": 6,
+      "height": 7
+     }
+    },
+    {
+     "widget": {
+      "name": "b_dom",
+      "queries": [
+       {
+        "name": "main_query",
+        "query": {
+         "datasetName": "ds_domains",
+         "fields": [
+          {
+           "name": "independent_sources",
+           "expression": "`independent_sources`"
+          },
+          {
+           "name": "avg_trust",
+           "expression": "AVG(`avg_trust`)"
+          }
+         ],
+         "disaggregated": false
+        }
+       }
+      ],
+      "spec": {
+       "version": 3,
+       "widgetType": "bar",
+       "encodings": {
+        "x": {
+         "fieldName": "independent_sources",
+         "scale": {
+          "type": "categorical"
+         },
+         "displayName": "Independent websites (6 = six or more)"
+        },
+        "y": {
+         "fieldName": "avg_trust",
+         "scale": {
+          "type": "quantitative"
+         },
+         "displayName": "Average trust (0-100)"
+        }
+       },
+       "frame": {
+        "showTitle": true,
+        "title": "More independent sources, higher trust"
+       }
+      }
+     },
+     "position": {
+      "x": 0,
+      "y": 9,
+      "width": 6,
+      "height": 7
+     }
+    },
+    {
+     "widget": {
+      "name": "tb_sig",
+      "queries": [
+       {
+        "name": "main_query",
+        "query": {
+         "datasetName": "ds_signals",
+         "fields": [
+          {
+           "name": "step",
+           "expression": "`step`"
+          },
+          {
+           "name": "signal",
+           "expression": "`signal`"
+          },
+          {
+           "name": "effect",
+           "expression": "`effect`"
+          },
+          {
+           "name": "why",
+           "expression": "`why`"
+          }
+         ],
+         "disaggregated": true,
+         "orders": [
+          {
+           "direction": "ASC",
+           "expression": "`step`"
+          }
+         ]
+        }
+       }
+      ],
+      "spec": {
+       "version": 2,
+       "widgetType": "table",
+       "encodings": {
+        "columns": [
+         {
+          "fieldName": "step",
+          "displayName": "#"
+         },
+         {
+          "fieldName": "signal",
+          "displayName": "What we look at"
+         },
+         {
+          "fieldName": "effect",
+          "displayName": "Effect on the chance the claim is real"
+         },
+         {
+          "fieldName": "why",
+          "displayName": "Why"
+         }
+        ]
+       },
+       "frame": {
+        "showTitle": true,
+        "title": "How a claim becomes a probability"
+       }
+      }
+     },
+     "position": {
+      "x": 6,
+      "y": 9,
+      "width": 6,
+      "height": 7
+     }
+    },
+    {
+     "widget": {
+      "name": "b_eval",
+      "queries": [
+       {
+        "name": "main_query",
+        "query": {
+         "datasetName": "ds_eval",
+         "fields": [
+          {
+           "name": "test",
+           "expression": "`test`"
+          },
+          {
+           "name": "max(pass_rate)",
+           "expression": "MAX(`pass_rate`)"
+          }
+         ],
+         "disaggregated": false
+        }
+       }
+      ],
+      "spec": {
+       "version": 3,
+       "widgetType": "bar",
+       "encodings": {
+        "x": {
+         "fieldName": "max(pass_rate)",
+         "scale": {
+          "type": "quantitative"
+         },
+         "displayName": "Passed",
+         "format": {
+          "type": "number-percent",
+          "decimalPlaces": {
+           "type": "max",
+           "places": 0
+          }
+         }
+        },
+        "y": {
+         "fieldName": "test",
+         "scale": {
+          "type": "categorical"
+         },
+         "displayName": "Test"
+        }
+       },
+       "frame": {
+        "showTitle": true,
+        "title": "Does the app behave? Share of labelled test cases passed",
+        "showDescription": true,
+        "description": "22 of 22 emergencies recognised, 11 of 11 non-emergencies left alone, 11 of 12 recommendation queries"
+       }
+      }
+     },
+     "position": {
+      "x": 0,
+      "y": 16,
+      "width": 12,
+      "height": 5
+     }
+    },
+    {
+     "widget": {
+      "name": "t3c",
+      "multilineTextboxSpec": {
+       "lines": [
+        "### The national hospital list (HEM / PM-JAY) as an independent witness\n",
+        "It was not scraped from web text, so it can confirm a hospital exists. It adds to a claim's score but is capped, and can never turn weak evidence into a recommendation."
+       ]
+      }
+     },
+     "position": {
+      "x": 0,
+      "y": 21,
+      "width": 12,
+      "height": 2
+     }
+    },
+    {
+     "widget": {
+      "name": "k3_rl",
+      "queries": [
+       {
+        "name": "main_query",
+        "query": {
+         "datasetName": "ds_reg_kpi",
+         "fields": [
+          {
+           "name": "sum(national_list)",
+           "expression": "SUM(`national_list`)"
+          }
+         ],
+         "disaggregated": false
+        }
+       }
+      ],
+      "spec": {
+       "version": 2,
+       "widgetType": "counter",
+       "encodings": {
+        "value": {
+         "fieldName": "sum(national_list)",
+         "displayName": "Hospitals on the national list"
+        }
+       },
+       "frame": {
+        "showTitle": true,
+        "title": "Hospitals on the national list"
+       }
+      }
+     },
+     "position": {
+      "x": 0,
+      "y": 23,
+      "width": 4,
+      "height": 3
+     }
+    },
+    {
+     "widget": {
+      "name": "k3_rv",
+      "queries": [
+       {
+        "name": "main_query",
+        "query": {
+         "datasetName": "ds_reg_kpi",
+         "fields": [
+          {
+           "name": "sum(verified)",
+           "expression": "SUM(`verified`)"
+          }
+         ],
+         "disaggregated": false
+        }
+       }
+      ],
+      "spec": {
+       "version": 2,
+       "widgetType": "counter",
+       "encodings": {
+        "value": {
+         "fieldName": "sum(verified)",
+         "displayName": "Our hospitals verified against it"
+        }
+       },
+       "frame": {
+        "showTitle": true,
+        "title": "Our hospitals verified against it"
+       }
+      }
+     },
+     "position": {
+      "x": 4,
+      "y": 23,
+      "width": 4,
+      "height": 3
+     }
+    },
+    {
+     "widget": {
+      "name": "k3_rb",
+      "queries": [
+       {
+        "name": "main_query",
+        "query": {
+         "datasetName": "ds_reg_kpi",
+         "fields": [
+          {
+           "name": "sum(badge_eligible)",
+           "expression": "SUM(`badge_eligible`)"
+          }
+         ],
+         "disaggregated": false
+        }
+       }
+      ],
+      "spec": {
+       "version": 2,
+       "widgetType": "counter",
+       "encodings": {
+        "value": {
+         "fieldName": "sum(badge_eligible)",
+         "displayName": "Eligible for the verified badge"
+        }
+       },
+       "frame": {
+        "showTitle": true,
+        "title": "Eligible for the verified badge"
+       }
+      }
+     },
+     "position": {
+      "x": 8,
+      "y": 23,
+      "width": 4,
+      "height": 3
+     }
+    }
+   ]
+  },
+  {
+   "name": "reference",
+   "displayName": "4. Reference: how we did it",
+   "pageType": "PAGE_TYPE_CANVAS",
+   "layoutVersion": "GRID_V1",
+   "layout": [
+    {
+     "widget": {
+      "name": "t4",
+      "multilineTextboxSpec": {
+       "lines": [
+        "## Reference: how we did it, step by step\n",
+        "Every cleaning step, with the file it came from. The last column says how we got each number: **counted from the data** (when this dashboard was built), from a **report in the repo**, or from the **team summary** (not reproducible from this folder). Use the filters to focus on one stage.\n"
+       ]
+      }
+     },
+     "position": {
+      "x": 0,
+      "y": 0,
+      "width": 12,
+      "height": 3
+     }
+    },
+    {
+     "widget": {
+      "name": "f_stage",
+      "queries": [
+       {
+        "name": "f_stage_q0",
+        "query": {
+         "datasetName": "ds_ledger",
+         "fields": [
+          {
+           "name": "stage",
+           "expression": "`stage`"
+          }
+         ],
+         "disaggregated": false
+        }
+       }
+      ],
+      "spec": {
+       "version": 2,
+       "widgetType": "filter-multi-select",
+       "encodings": {
+        "fields": [
+         {
+          "fieldName": "stage",
+          "displayName": "Stage",
+          "queryName": "f_stage_q0"
+         }
+        ]
+       },
+       "frame": {
+        "showTitle": true,
+        "title": "Stage"
+       }
+      }
+     },
+     "position": {
+      "x": 0,
+      "y": 3,
+      "width": 4,
+      "height": 2
+     }
+    },
+    {
+     "widget": {
+      "name": "f_how",
+      "queries": [
+       {
+        "name": "f_how_q0",
+        "query": {
+         "datasetName": "ds_ledger",
+         "fields": [
+          {
+           "name": "number_is",
+           "expression": "`number_is`"
+          }
+         ],
+         "disaggregated": false
+        }
+       }
+      ],
+      "spec": {
+       "version": 2,
+       "widgetType": "filter-multi-select",
+       "encodings": {
+        "fields": [
+         {
+          "fieldName": "number_is",
+          "displayName": "Where the number comes from",
+          "queryName": "f_how_q0"
+         }
+        ]
+       },
+       "frame": {
+        "showTitle": true,
+        "title": "Where the number comes from"
+       }
+      }
+     },
+     "position": {
+      "x": 4,
+      "y": 3,
+      "width": 4,
+      "height": 2
+     }
+    },
+    {
+     "widget": {
+      "name": "tb_ledger",
+      "queries": [
+       {
+        "name": "main_query",
+        "query": {
+         "datasetName": "ds_ledger",
+         "fields": [
+          {
+           "name": "stage",
+           "expression": "`stage`"
+          },
+          {
+           "name": "step",
+           "expression": "`step`"
+          },
+          {
+           "name": "n",
+           "expression": "`n`"
+          },
+          {
+           "name": "unit",
+           "expression": "`unit`"
+          },
+          {
+           "name": "what_we_did",
+           "expression": "`what_we_did`"
+          },
+          {
+           "name": "source_file",
+           "expression": "`source_file`"
+          },
+          {
+           "name": "number_is",
+           "expression": "`number_is`"
+          }
+         ],
+         "disaggregated": true,
+         "orders": [
+          {
+           "direction": "ASC",
+           "expression": "`stage`"
+          }
+         ]
+        }
+       }
+      ],
+      "spec": {
+       "version": 2,
+       "widgetType": "table",
+       "encodings": {
+        "columns": [
+         {
+          "fieldName": "stage",
+          "displayName": "Stage"
+         },
+         {
+          "fieldName": "step",
+          "displayName": "What we found"
+         },
+         {
+          "fieldName": "n",
+          "displayName": "How many"
+         },
+         {
+          "fieldName": "unit",
+          "displayName": "Unit"
+         },
+         {
+          "fieldName": "what_we_did",
+          "displayName": "What we did"
+         },
+         {
+          "fieldName": "source_file",
+          "displayName": "Where to look"
+         },
+         {
+          "fieldName": "number_is",
+          "displayName": "Number is"
+         }
+        ]
+       },
+       "frame": {
+        "showTitle": true,
+        "title": "The full ledger"
+       }
+      }
+     },
+     "position": {
+      "x": 0,
+      "y": 5,
+      "width": 12,
+      "height": 12
+     }
+    },
+    {
+     "widget": {
+      "name": "s1",
+      "multilineTextboxSpec": {
+       "lines": [
+        "### 1. Read and repair: 10,088 rows become 9,989 facilities\n",
+        "The file's quotes are escaped in a non-standard way, so a normal read crashes. 88 rows were pieces of 30 real records and all 30 were stitched back. 11 identical copies were dropped. Original values are kept in raw_ columns."
+       ]
+      }
+     },
+     "position": {
+      "x": 0,
+      "y": 17,
+      "width": 12,
+      "height": 2
+     }
+    },
+    {
+     "widget": {
+      "name": "k_r1",
+      "queries": [
+       {
+        "name": "main_query",
+        "query": {
+         "datasetName": "ds_rows",
+         "fields": [
+          {
+           "name": "sum(parsed)",
+           "expression": "SUM(`parsed`)"
+          }
+         ],
+         "disaggregated": false
+        }
+       }
+      ],
+      "spec": {
+       "version": 2,
+       "widgetType": "counter",
+       "encodings": {
+        "value": {
+         "fieldName": "sum(parsed)",
+         "displayName": "Rows in the file"
+        }
+       },
+       "frame": {
+        "showTitle": true,
+        "title": "Rows in the file"
+       }
+      }
+     },
+     "position": {
+      "x": 0,
+      "y": 19,
+      "width": 3,
+      "height": 3
+     }
+    },
+    {
+     "widget": {
+      "name": "k_r2",
+      "queries": [
+       {
+        "name": "main_query",
+        "query": {
+         "datasetName": "ds_rows",
+         "fields": [
+          {
+           "name": "sum(fragments)",
+           "expression": "SUM(`fragments`)"
+          }
+         ],
+         "disaggregated": false
+        }
+       }
+      ],
+      "spec": {
+       "version": 2,
+       "widgetType": "counter",
+       "encodings": {
+        "value": {
+         "fieldName": "sum(fragments)",
+         "displayName": "Broken pieces set aside"
+        }
+       },
+       "frame": {
+        "showTitle": true,
+        "title": "Broken pieces set aside",
+        "showDescription": true,
+        "description": "Pieces of 30 real records, which were stitched back"
+       }
+      }
+     },
+     "position": {
+      "x": 3,
+      "y": 19,
+      "width": 3,
+      "height": 3
+     }
+    },
+    {
+     "widget": {
+      "name": "k_r3",
+      "queries": [
+       {
+        "name": "main_query",
+        "query": {
+         "datasetName": "ds_rows",
+         "fields": [
+          {
+           "name": "sum(duplicates)",
+           "expression": "SUM(`duplicates`)"
+          }
+         ],
+         "disaggregated": false
+        }
+       }
+      ],
+      "spec": {
+       "version": 2,
+       "widgetType": "counter",
+       "encodings": {
+        "value": {
+         "fieldName": "sum(duplicates)",
+         "displayName": "Identical copies dropped"
+        }
+       },
+       "frame": {
+        "showTitle": true,
+        "title": "Identical copies dropped"
+       }
+      }
+     },
+     "position": {
+      "x": 6,
+      "y": 19,
+      "width": 3,
+      "height": 3
+     }
+    },
+    {
+     "widget": {
+      "name": "k_r4",
+      "queries": [
+       {
+        "name": "main_query",
+        "query": {
+         "datasetName": "ds_rows",
+         "fields": [
+          {
+           "name": "sum(final_rows)",
+           "expression": "SUM(`final_rows`)"
+          }
+         ],
+         "disaggregated": false
+        }
+       }
+      ],
+      "spec": {
+       "version": 2,
+       "widgetType": "counter",
+       "encodings": {
+        "value": {
+         "fieldName": "sum(final_rows)",
+         "displayName": "Facilities we work with"
+        }
+       },
+       "frame": {
+        "showTitle": true,
+        "title": "Facilities we work with"
+       }
+      }
+     },
+     "position": {
+      "x": 9,
+      "y": 19,
+      "width": 3,
+      "height": 3
+     }
+    },
+    {
+     "widget": {
+      "name": "s2",
+      "multilineTextboxSpec": {
+       "lines": [
+        "### 2. Where is it? Three independent checks on every location\n",
+        "India Post PIN directory, the facility's own coordinates, and OpenStreetMap. The ribbon below shows how the address check (left) became the final location trust (right). Use the filters to see which checks fire for one state or facility type."
+       ]
+      }
+     },
+     "position": {
+      "x": 0,
+      "y": 22,
+      "width": 12,
+      "height": 3
+     }
+    },
+    {
+     "widget": {
+      "name": "f_state4",
+      "queries": [
+       {
+        "name": "f_state4_q0",
+        "query": {
+         "datasetName": "ds_flags",
+         "fields": [
+          {
+           "name": "state",
+           "expression": "`state`"
+          }
+         ],
+         "disaggregated": false
+        }
+       }
+      ],
+      "spec": {
+       "version": 2,
+       "widgetType": "filter-multi-select",
+       "encodings": {
+        "fields": [
+         {
+          "fieldName": "state",
+          "displayName": "State",
+          "queryName": "f_state4_q0"
+         }
+        ]
+       },
+       "frame": {
+        "showTitle": true,
+        "title": "State"
+       }
+      }
+     },
+     "position": {
+      "x": 0,
+      "y": 25,
+      "width": 4,
+      "height": 2
+     }
+    },
+    {
+     "widget": {
+      "name": "f_type4",
+      "queries": [
+       {
+        "name": "f_type4_q0",
+        "query": {
+         "datasetName": "ds_flags",
+         "fields": [
+          {
+           "name": "facility_type",
+           "expression": "`facility_type`"
+          }
+         ],
+         "disaggregated": false
+        }
+       },
+       {
+        "name": "f_type4_q1",
+        "query": {
+         "datasetName": "ds_flag_rate",
+         "fields": [
+          {
+           "name": "facility_type",
+           "expression": "`facility_type`"
+          }
+         ],
+         "disaggregated": false
+        }
+       }
+      ],
+      "spec": {
+       "version": 2,
+       "widgetType": "filter-multi-select",
+       "encodings": {
+        "fields": [
+         {
+          "fieldName": "facility_type",
+          "displayName": "Facility type",
+          "queryName": "f_type4_q0"
+         },
+         {
+          "fieldName": "facility_type",
+          "displayName": "Facility type",
+          "queryName": "f_type4_q1"
+         }
+        ]
+       },
+       "frame": {
+        "showTitle": true,
+        "title": "Facility type"
+       }
+      }
+     },
+     "position": {
+      "x": 4,
+      "y": 25,
+      "width": 4,
+      "height": 2
+     }
+    },
+    {
+     "widget": {
+      "name": "b_flags",
+      "queries": [
+       {
+        "name": "main_query",
+        "query": {
+         "datasetName": "ds_flags",
+         "fields": [
+          {
+           "name": "check_name",
+           "expression": "`check_name`"
+          },
+          {
+           "name": "count(*)",
+           "expression": "COUNT(`*`)"
+          },
+          {
+           "name": "area",
+           "expression": "`area`"
+          }
+         ],
+         "disaggregated": false
+        }
+       }
+      ],
+      "spec": {
+       "version": 3,
+       "widgetType": "bar",
+       "encodings": {
+        "x": {
+         "fieldName": "count(*)",
+         "scale": {
+          "type": "quantitative"
+         },
+         "displayName": "Hospitals flagged"
+        },
+        "y": {
+         "fieldName": "check_name",
+         "scale": {
+          "type": "categorical"
+         },
+         "displayName": "Check"
+        },
+        "color": {
+         "fieldName": "area",
+         "scale": {
+          "type": "categorical",
+          "mappings": [
+           {
+            "value": "Where is it?",
+            "color": "#0072B2"
+           },
+           {
+            "value": "Is it one hospital?",
+            "color": "#D55E00"
+           },
+           {
+            "value": "Contact details",
+            "color": "#E69F00"
+           },
+           {
+            "value": "Record quality",
+            "color": "#CC79A7"
+           }
+          ]
+         },
+         "displayName": "area"
+        }
+       },
+       "frame": {
+        "showTitle": true,
+        "title": "Hospitals flagged by each check"
+       }
+      }
+     },
+     "position": {
+      "x": 0,
+      "y": 27,
+      "width": 12,
+      "height": 9
+     }
+    },
+    {
+     "widget": {
+      "name": "sk_addr",
+      "queries": [
+       {
+        "name": "main_query",
+        "query": {
+         "datasetName": "ds_addr",
+         "fields": [
+          {
+           "name": "address_verdict",
+           "expression": "`address_verdict`"
+          },
+          {
+           "name": "final_location",
+           "expression": "`final_location`"
+          },
+          {
+           "name": "sum(n)",
+           "expression": "SUM(`n`)"
+          }
+         ],
+         "disaggregated": false
+        }
+       }
+      ],
+      "spec": {
+       "version": 1,
+       "widgetType": "sankey",
+       "encodings": {
+        "value": {
+         "fieldName": "sum(n)"
+        },
+        "stages": [
+         {
+          "fieldName": "address_verdict",
+          "displayName": "Address check"
+         },
+         {
+          "fieldName": "final_location",
+          "displayName": "Final location"
+         }
+        ]
+       },
+       "frame": {
+        "showTitle": true,
+        "title": "From address check to final location trust"
+       }
+      }
+     },
+     "position": {
+      "x": 0,
+      "y": 36,
+      "width": 7,
+      "height": 9
+     }
+    },
+    {
+     "widget": {
+      "name": "h_rate",
+      "queries": [
+       {
+        "name": "main_query",
+        "query": {
+         "datasetName": "ds_flag_rate",
+         "fields": [
+          {
+           "name": "facility_type",
+           "expression": "`facility_type`"
+          },
+          {
+           "name": "check_name",
+           "expression": "`check_name`"
+          },
+          {
+           "name": "sum(pct_flagged)",
+           "expression": "SUM(`pct_flagged`)"
+          }
+         ],
+         "disaggregated": false
+        }
+       }
+      ],
+      "spec": {
+       "version": 3,
+       "widgetType": "heatmap",
+       "encodings": {
+        "x": {
+         "fieldName": "facility_type",
+         "scale": {
+          "type": "categorical"
+         },
+         "axis": {
+          "hideTitle": true
+         }
+        },
+        "y": {
+         "fieldName": "check_name",
+         "scale": {
+          "type": "categorical"
+         },
+         "axis": {
+          "hideTitle": true
+         }
+        },
+        "color": {
+         "fieldName": "sum(pct_flagged)",
+         "scale": {
+          "type": "quantitative",
+          "colorRamp": {
+           "mode": "scheme",
+           "scheme": "YlOrRd"
+          }
+         }
+        },
+        "label": {
+         "show": true
+        }
+       },
+       "frame": {
+        "showTitle": true,
+        "title": "Which checks fire more for hospitals than clinics (% flagged)"
+       }
+      }
+     },
+     "position": {
+      "x": 7,
+      "y": 36,
+      "width": 5,
+      "height": 9
+     }
+    },
+    {
+     "widget": {
+      "name": "s3",
+      "multilineTextboxSpec": {
+       "lines": [
+        "### 3. Phones: valid, shared, or somebody else's?\n",
+        "Every number was parsed against the Indian numbering plan, then tested for being a shared booking line, a fake, or from the wrong state. The set-aside reasons come from the team summary; the totals are live."
+       ]
+      }
+     },
+     "position": {
+      "x": 0,
+      "y": 45,
+      "width": 12,
+      "height": 3
+     }
+    },
+    {
+     "widget": {
+      "name": "sk_phone",
+      "queries": [
+       {
+        "name": "main_query",
+        "query": {
+         "datasetName": "ds_phone_flow",
+         "fields": [
+          {
+           "name": "step1",
+           "expression": "`step1`"
+          },
+          {
+           "name": "step2",
+           "expression": "`step2`"
+          },
+          {
+           "name": "step3",
+           "expression": "`step3`"
+          },
+          {
+           "name": "sum(n)",
+           "expression": "SUM(`n`)"
+          }
+         ],
+         "disaggregated": false
+        }
+       }
+      ],
+      "spec": {
+       "version": 1,
+       "widgetType": "sankey",
+       "encodings": {
+        "value": {
+         "fieldName": "sum(n)"
+        },
+        "stages": [
+         {
+          "fieldName": "step1",
+          "displayName": "Checked"
+         },
+         {
+          "fieldName": "step2",
+          "displayName": "Outcome"
+         },
+         {
+          "fieldName": "step3",
+          "displayName": "Why"
+         }
+        ]
+       },
+       "frame": {
+        "showTitle": true,
+        "title": "Where the phone numbers went"
+       }
+      }
+     },
+     "position": {
+      "x": 0,
+      "y": 48,
+      "width": 7,
+      "height": 9
+     }
+    },
+    {
+     "widget": {
+      "name": "b_pstat",
+      "queries": [
+       {
+        "name": "main_query",
+        "query": {
+         "datasetName": "ds_phone_status",
+         "fields": [
+          {
+           "name": "status",
+           "expression": "`status`"
+          },
+          {
+           "name": "sum(n)",
+           "expression": "SUM(`n`)"
+          }
+         ],
+         "disaggregated": false
+        }
+       }
+      ],
+      "spec": {
+       "version": 3,
+       "widgetType": "bar",
+       "encodings": {
+        "x": {
+         "fieldName": "sum(n)",
+         "scale": {
+          "type": "quantitative"
+         },
+         "displayName": "Hospitals"
+        },
+        "y": {
+         "fieldName": "status",
+         "scale": {
+          "type": "categorical"
+         },
+         "displayName": "Status"
+        }
+       },
+       "frame": {
+        "showTitle": true,
+        "title": "Was the hospital's 'official' phone trustworthy?"
+       }
+      }
+     },
+     "position": {
+      "x": 7,
+      "y": 48,
+      "width": 5,
+      "height": 9
+     }
+    },
+    {
+     "widget": {
+      "name": "s4",
+      "multilineTextboxSpec": {
+       "lines": [
+        "### 4. Numbers and dates: checked against outside sources\n",
+        "Wikidata (285 matched facilities), web searches for every extreme value, and the facility's own text. We never overwrite a value we have not verified, and we never guess a missing one."
+       ]
+      }
+     },
+     "position": {
+      "x": 0,
+      "y": 57,
+      "width": 12,
+      "height": 3
+     }
+    },
+    {
+     "widget": {
+      "name": "b_num",
+      "queries": [
+       {
+        "name": "main_query",
+        "query": {
+         "datasetName": "ds_numcheck",
+         "fields": [
+          {
+           "name": "field",
+           "expression": "`field`"
+          },
+          {
+           "name": "sum(n)",
+           "expression": "SUM(`n`)"
+          },
+          {
+           "name": "result",
+           "expression": "`result`"
+          }
+         ],
+         "disaggregated": false
+        }
+       }
+      ],
+      "spec": {
+       "version": 3,
+       "widgetType": "bar",
+       "encodings": {
+        "x": {
+         "fieldName": "field",
+         "scale": {
+          "type": "categorical"
+         },
+         "displayName": "Field"
+        },
+        "y": {
+         "fieldName": "sum(n)",
+         "scale": {
+          "type": "quantitative"
+         },
+         "displayName": "Share of hospitals",
+         "format": {
+          "type": "number-percent",
+          "decimalPlaces": {
+           "type": "max",
+           "places": 0
+          }
+         }
+        },
+        "color": {
+         "fieldName": "result",
+         "scale": {
+          "type": "categorical",
+          "mappings": [
+           {
+            "value": "1 Confirmed or consistent",
+            "color": "#009E73"
+           },
+           {
+            "value": "2 Corrected or filled from a source",
+            "color": "#56B4E9"
+           },
+           {
+            "value": "3 Disputed or contradicted",
+            "color": "#D55E00"
+           },
+           {
+            "value": "4 Could not be checked",
+            "color": "#9AA5B1"
+           },
+           {
+            "value": "5 Missing (never guessed)",
+            "color": "#D9DEE3"
+           }
+          ]
+         },
+         "displayName": "result"
+        }
+       },
+       "mark": {
+        "layout": "stack-100"
+       },
+       "frame": {
+        "showTitle": true,
+        "title": "How each number was checked"
+       }
+      }
+     },
+     "position": {
+      "x": 0,
+      "y": 60,
+      "width": 6,
+      "height": 8
+     }
+    },
+    {
+     "widget": {
+      "name": "b_recog",
+      "queries": [
+       {
+        "name": "main_query",
+        "query": {
+         "datasetName": "ds_recog",
+         "fields": [
+          {
+           "name": "tier",
+           "expression": "`tier`"
+          },
+          {
+           "name": "sum(n)",
+           "expression": "SUM(`n`)"
+          },
+          {
+           "name": "tier",
+           "expression": "`tier`"
+          }
+         ],
+         "disaggregated": false
+        }
+       }
+      ],
+      "spec": {
+       "version": 3,
+       "widgetType": "bar",
+       "encodings": {
+        "x": {
+         "fieldName": "tier",
+         "scale": {
+          "type": "categorical"
+         },
+         "displayName": "Tier"
+        },
+        "y": {
+         "fieldName": "sum(n)",
+         "scale": {
+          "type": "quantitative"
+         },
+         "displayName": "Hospitals"
+        },
+        "color": {
+         "fieldName": "tier",
+         "scale": {
+          "type": "categorical",
+          "mappings": [
+           {
+            "value": "1 High",
+            "color": "#009E73"
+           },
+           {
+            "value": "2 Moderate",
+            "color": "#56B4E9"
+           },
+           {
+            "value": "3 Some",
+            "color": "#E69F00"
+           },
+           {
+            "value": "4 No evidence found (unknown, not bad)",
+            "color": "#9AA5B1"
+           }
+          ]
+         },
+         "displayName": "tier"
+        }
+       },
+       "frame": {
+        "showTitle": true,
+        "title": "Recognition: signs of standing we could verify",
+        "showDescription": true,
+        "description": "Wikipedia article, accreditation claimed, teaching status, age. Not a review score."
+       }
+      }
+     },
+     "position": {
+      "x": 6,
+      "y": 60,
+      "width": 6,
+      "height": 8
+     }
+    },
+    {
+     "widget": {
+      "name": "tb_web",
+      "queries": [
+       {
+        "name": "main_query",
+        "query": {
+         "datasetName": "ds_webchecks",
+         "fields": [
+          {
+           "name": "facility",
+           "expression": "`facility`"
+          },
+          {
+           "name": "claim",
+           "expression": "`claim`"
+          },
+          {
+           "name": "verdict",
+           "expression": "`verdict`"
+          },
+          {
+           "name": "what_sources_say",
+           "expression": "`what_sources_say`"
+          }
+         ],
+         "disaggregated": true,
+         "orders": [
+          {
+           "direction": "ASC",
+           "expression": "`verdict`"
+          }
+         ]
+        }
+       }
+      ],
+      "spec": {
+       "version": 2,
+       "widgetType": "table",
+       "encodings": {
+        "columns": [
+         {
+          "fieldName": "facility",
+          "displayName": "Facility"
+         },
+         {
+          "fieldName": "claim",
+          "displayName": "What the record says"
+         },
+         {
+          "fieldName": "verdict",
+          "displayName": "Web verdict"
+         },
+         {
+          "fieldName": "what_sources_say",
+          "displayName": "What the sources say"
+         }
+        ]
+       },
+       "frame": {
+        "showTitle": true,
+        "title": "The 15 extreme values we checked on the web: 8 contradicted, so the app shows the verdict next to the number"
+       }
+      }
+     },
+     "position": {
+      "x": 0,
+      "y": 68,
+      "width": 12,
+      "height": 9
+     }
+    },
+    {
+     "widget": {
+      "name": "s5",
+      "multilineTextboxSpec": {
+       "lines": [
+        "### 5. Services: what the text really says\n",
+        "Free text was split into items, off-topic items were moved aside, and each service claim got a level, the exact quote, and up to 3 source links that name the hospital. "
+       ]
+      }
+     },
+     "position": {
+      "x": 0,
+      "y": 77,
+      "width": 12,
+      "height": 3
+     }
+    },
+    {
+     "widget": {
+      "name": "p_tiers",
+      "queries": [
+       {
+        "name": "main_query",
+        "query": {
+         "datasetName": "ds_tiers",
+         "fields": [
+          {
+           "name": "tier",
+           "expression": "`tier`"
+          },
+          {
+           "name": "sum(hospitals)",
+           "expression": "SUM(`hospitals`)"
+          }
+         ],
+         "disaggregated": false
+        }
+       }
+      ],
+      "spec": {
+       "version": 3,
+       "widgetType": "pie",
+       "encodings": {
+        "angle": {
+         "fieldName": "sum(hospitals)",
+         "scale": {
+          "type": "quantitative"
+         }
+        },
+        "color": {
+         "fieldName": "tier",
+         "scale": {
+          "type": "categorical",
+          "mappings": [
+           {
+            "value": "Moderate or stronger evidence",
+            "color": "#009E73"
+           },
+           {
+            "value": "Only weak or inferred claims",
+            "color": "#E69F00"
+           },
+           {
+            "value": "No usable evidence (shown as Unknown)",
+            "color": "#9AA5B1"
+           }
+          ]
+         }
+        },
+        "label": {
+         "show": true
+        }
+       },
+       "frame": {
+        "showTitle": true,
+        "title": "What the service evidence looks like across 9,989 hospitals"
+       }
+      }
+     },
+     "position": {
+      "x": 0,
+      "y": 80,
+      "width": 5,
+      "height": 8
+     }
+    },
+    {
+     "widget": {
+      "name": "b_items",
+      "queries": [
+       {
+        "name": "main_query",
+        "query": {
+         "datasetName": "ds_items",
+         "fields": [
+          {
+           "name": "reason",
+           "expression": "`reason`"
+          },
+          {
+           "name": "sum(items)",
+           "expression": "SUM(`items`)"
+          }
+         ],
+         "disaggregated": false
+        }
+       }
+      ],
+      "spec": {
+       "version": 3,
+       "widgetType": "bar",
+       "encodings": {
+        "x": {
+         "fieldName": "sum(items)",
+         "scale": {
+          "type": "quantitative"
+         },
+         "displayName": "Items"
+        },
+        "y": {
+         "fieldName": "reason",
+         "scale": {
+          "type": "categorical"
+         },
+         "displayName": "Reason"
+        }
+       },
+       "frame": {
+        "showTitle": true,
+        "title": "Service text left out of the evidence (team summary)"
+       }
+      }
+     },
+     "position": {
+      "x": 5,
+      "y": 80,
+      "width": 7,
+      "height": 8
+     }
+    },
+    {
+     "widget": {
+      "name": "tb_rules",
+      "queries": [
+       {
+        "name": "main_query",
+        "query": {
+         "datasetName": "ds_rules",
+         "fields": [
+          {
+           "name": "step",
+           "expression": "`step`"
+          },
+          {
+           "name": "situation",
+           "expression": "`situation`"
+          },
+          {
+           "name": "what_we_do",
+           "expression": "`what_we_do`"
+          },
+          {
+           "name": "how_many",
+           "expression": "`how_many`"
+          }
+         ],
+         "disaggregated": true,
+         "orders": [
+          {
+           "direction": "ASC",
+           "expression": "`step`"
+          }
+         ]
+        }
+       }
+      ],
+      "spec": {
+       "version": 2,
+       "widgetType": "table",
+       "encodings": {
+        "columns": [
+         {
+          "fieldName": "step",
+          "displayName": "#"
+         },
+         {
+          "fieldName": "situation",
+          "displayName": "When we see this"
+         },
+         {
+          "fieldName": "what_we_do",
+          "displayName": "We do this"
+         },
+         {
+          "fieldName": "how_many",
+          "displayName": "How many"
+         }
+        ]
+       },
+       "frame": {
+        "showTitle": true,
+        "title": "Rules that changed how much a claim is trusted (team summary)"
+       }
+      }
+     },
+     "position": {
+      "x": 0,
+      "y": 88,
+      "width": 12,
+      "height": 8
+     }
+    },
+    {
+     "widget": {
+      "name": "s6",
+      "multilineTextboxSpec": {
+       "lines": [
+        "### 6. The government registry (HEM): an independent witness\n",
+        "HEM is the National Health Authority's Hospital Empanelment Module list of PM-JAY hospitals. It was not scraped from web text, so it can confirm that a hospital exists and which specialty packages it is approved for. We match by name and place, or phone and name."
+       ]
+      }
+     },
+     "position": {
+      "x": 0,
+      "y": 96,
+      "width": 12,
+      "height": 3
+     }
+    },
+    {
+     "widget": {
+      "name": "k_rl",
+      "queries": [
+       {
+        "name": "main_query",
+        "query": {
+         "datasetName": "ds_reg_kpi",
+         "fields": [
+          {
+           "name": "sum(national_list)",
+           "expression": "SUM(`national_list`)"
+          }
+         ],
+         "disaggregated": false
+        }
+       }
+      ],
+      "spec": {
+       "version": 2,
+       "widgetType": "counter",
+       "encodings": {
+        "value": {
+         "fieldName": "sum(national_list)",
+         "displayName": "Hospitals on the national list"
+        }
+       },
+       "frame": {
+        "showTitle": true,
+        "title": "Hospitals on the national list"
+       }
+      }
+     },
+     "position": {
+      "x": 0,
+      "y": 99,
+      "width": 3,
+      "height": 3
+     }
+    },
+    {
+     "widget": {
+      "name": "k_rv2",
+      "queries": [
+       {
+        "name": "main_query",
+        "query": {
+         "datasetName": "ds_reg_kpi",
+         "fields": [
+          {
+           "name": "sum(verified)",
+           "expression": "SUM(`verified`)"
+          }
+         ],
+         "disaggregated": false
+        }
+       }
+      ],
+      "spec": {
+       "version": 2,
+       "widgetType": "counter",
+       "encodings": {
+        "value": {
+         "fieldName": "sum(verified)",
+         "displayName": "Our hospitals verified against it"
+        }
+       },
+       "frame": {
+        "showTitle": true,
+        "title": "Our hospitals verified against it"
+       }
+      }
+     },
+     "position": {
+      "x": 3,
+      "y": 99,
+      "width": 3,
+      "height": 3
+     }
+    },
+    {
+     "widget": {
+      "name": "k_rp2",
+      "queries": [
+       {
+        "name": "main_query",
+        "query": {
+         "datasetName": "ds_reg_kpi",
+         "fields": [
+          {
+           "name": "sum(possible)",
+           "expression": "SUM(`possible`)"
+          }
+         ],
+         "disaggregated": false
+        }
+       }
+      ],
+      "spec": {
+       "version": 2,
+       "widgetType": "counter",
+       "encodings": {
+        "value": {
+         "fieldName": "sum(possible)",
+         "displayName": "Possible matches (need a person)"
+        }
+       },
+       "frame": {
+        "showTitle": true,
+        "title": "Possible matches (need a person)",
+        "showDescription": true,
+        "description": "Shown as unconfirmed, never used as proof"
+       }
+      }
+     },
+     "position": {
+      "x": 6,
+      "y": 99,
+      "width": 3,
+      "height": 3
+     }
+    },
+    {
+     "widget": {
+      "name": "k_rb",
+      "queries": [
+       {
+        "name": "main_query",
+        "query": {
+         "datasetName": "ds_reg_kpi",
+         "fields": [
+          {
+           "name": "sum(badge_eligible)",
+           "expression": "SUM(`badge_eligible`)"
+          }
+         ],
+         "disaggregated": false
+        }
+       }
+      ],
+      "spec": {
+       "version": 2,
+       "widgetType": "counter",
+       "encodings": {
+        "value": {
+         "fieldName": "sum(badge_eligible)",
+         "displayName": "Eligible for the verified badge"
+        }
+       },
+       "frame": {
+        "showTitle": true,
+        "title": "Eligible for the verified badge"
+       }
+      }
+     },
+     "position": {
+      "x": 9,
+      "y": 99,
+      "width": 3,
+      "height": 3
+     }
+    },
+    {
+     "widget": {
+      "name": "b_rm",
+      "queries": [
+       {
+        "name": "main_query",
+        "query": {
+         "datasetName": "ds_reg_method",
+         "fields": [
+          {
+           "name": "how_matched",
+           "expression": "`how_matched`"
+          },
+          {
+           "name": "sum(n)",
+           "expression": "SUM(`n`)"
+          },
+          {
+           "name": "outcome",
+           "expression": "`outcome`"
+          }
+         ],
+         "disaggregated": false
+        }
+       }
+      ],
+      "spec": {
+       "version": 3,
+       "widgetType": "bar",
+       "encodings": {
+        "x": {
+         "fieldName": "sum(n)",
+         "scale": {
+          "type": "quantitative"
+         },
+         "displayName": "Matches"
+        },
+        "y": {
+         "fieldName": "how_matched",
+         "scale": {
+          "type": "categorical"
+         },
+         "displayName": "Evidence used"
+        },
+        "color": {
+         "fieldName": "outcome",
+         "scale": {
+          "type": "categorical",
+          "mappings": [
+           {
+            "value": "Verified",
+            "color": "#009E73"
+           },
+           {
+            "value": "Possible (not used as proof)",
+            "color": "#9AA5B1"
+           }
+          ]
+         },
+         "displayName": "outcome"
+        }
+       },
+       "mark": {
+        "layout": "stack"
+       },
+       "frame": {
+        "showTitle": true,
+        "title": "How each match was made"
+       }
+      }
+     },
+     "position": {
+      "x": 0,
+      "y": 102,
+      "width": 6,
+      "height": 7
+     }
+    },
+    {
+     "widget": {
+      "name": "b_rk",
+      "queries": [
+       {
+        "name": "main_query",
+        "query": {
+         "datasetName": "ds_reg_km",
+         "fields": [
+          {
+           "name": "distance",
+           "expression": "`distance`"
+          },
+          {
+           "name": "sum(n)",
+           "expression": "SUM(`n`)"
+          }
+         ],
+         "disaggregated": false
+        }
+       }
+      ],
+      "spec": {
+       "version": 3,
+       "widgetType": "bar",
+       "encodings": {
+        "x": {
+         "fieldName": "distance",
+         "scale": {
+          "type": "categorical"
+         },
+         "displayName": "Distance"
+        },
+        "y": {
+         "fieldName": "sum(n)",
+         "scale": {
+          "type": "quantitative"
+         },
+         "displayName": "Verified matches"
+        }
+       },
+       "frame": {
+        "showTitle": true,
+        "title": "Sanity check: distance between the two records of a verified match",
+        "showDescription": true,
+        "description": "Median 0.14 km; 81% also share a PIN code"
+       }
+      }
+     },
+     "position": {
+      "x": 6,
+      "y": 102,
+      "width": 6,
+      "height": 7
+     }
+    },
+    {
+     "widget": {
+      "name": "b_ro",
+      "queries": [
+       {
+        "name": "main_query",
+        "query": {
+         "datasetName": "ds_reg_owner",
+         "fields": [
+          {
+           "name": "source",
+           "expression": "`source`"
+          },
+          {
+           "name": "sum(n)",
+           "expression": "SUM(`n`)"
+          },
+          {
+           "name": "ownership",
+           "expression": "`ownership`"
+          }
+         ],
+         "disaggregated": false
+        }
+       }
+      ],
+      "spec": {
+       "version": 3,
+       "widgetType": "bar",
+       "encodings": {
+        "x": {
+         "fieldName": "source",
+         "scale": {
+          "type": "categorical"
+         },
+         "displayName": "source"
+        },
+        "y": {
+         "fieldName": "sum(n)",
+         "scale": {
+          "type": "quantitative"
+         },
+         "displayName": "Share",
+         "format": {
+          "type": "number-percent",
+          "decimalPlaces": {
+           "type": "max",
+           "places": 0
+          }
+         }
+        },
+        "color": {
+         "fieldName": "ownership",
+         "scale": {
+          "type": "categorical",
+          "mappings": [
+           {
+            "value": "government",
+            "color": "#0072B2"
+           },
+           {
+            "value": "private",
+            "color": "#E69F00"
+           }
+          ]
+         },
+         "displayName": "ownership"
+        }
+       },
+       "mark": {
+        "layout": "stack-100"
+       },
+       "frame": {
+        "showTitle": true,
+        "title": "Who is on the national list, and who we matched"
+       }
+      }
+     },
+     "position": {
+      "x": 0,
+      "y": 109,
+      "width": 6,
+      "height": 7
+     }
+    },
+    {
+     "widget": {
+      "name": "tb_rs",
+      "queries": [
+       {
+        "name": "main_query",
+        "query": {
+         "datasetName": "ds_reg_signals",
+         "fields": [
+          {
+           "name": "step",
+           "expression": "`step`"
+          },
+          {
+           "name": "signal",
+           "expression": "`signal`"
+          },
+          {
+           "name": "effect",
+           "expression": "`effect`"
+          },
+          {
+           "name": "why",
+           "expression": "`why`"
+          }
+         ],
+         "disaggregated": true,
+         "orders": [
+          {
+           "direction": "ASC",
+           "expression": "`step`"
+          }
+         ]
+        }
+       }
+      ],
+      "spec": {
+       "version": 2,
+       "widgetType": "table",
+       "encodings": {
+        "columns": [
+         {
+          "fieldName": "step",
+          "displayName": "#"
+         },
+         {
+          "fieldName": "signal",
+          "displayName": "What the registry tells us"
+         },
+         {
+          "fieldName": "effect",
+          "displayName": "Effect on the chance a claim is real"
+         },
+         {
+          "fieldName": "why",
+          "displayName": "Why"
+         }
+        ]
+       },
+       "frame": {
+        "showTitle": true,
+        "title": "How the registry changes the ranking"
+       }
+      }
+     },
+     "position": {
+      "x": 6,
+      "y": 109,
+      "width": 6,
+      "height": 7
+     }
+    },
+    {
+     "widget": {
+      "name": "s7",
+      "multilineTextboxSpec": {
+       "lines": [
+        "### 7. Where our answer is least certain\n",
+        "Where the data is thin, the app says so and shows the facility as unknown rather than guessing."
+       ]
+      }
+     },
+     "position": {
+      "x": 0,
+      "y": 116,
+      "width": 12,
+      "height": 3
+     }
+    },
+    {
+     "widget": {
+      "name": "b_desert",
+      "queries": [
+       {
+        "name": "main_query",
+        "query": {
+         "datasetName": "ds_desert",
+         "fields": [
+          {
+           "name": "service",
+           "expression": "`service`"
+          },
+          {
+           "name": "sum(n)",
+           "expression": "SUM(`n`)"
+          },
+          {
+           "name": "bucket",
+           "expression": "`bucket`"
+          }
+         ],
+         "disaggregated": false
+        }
+       }
+      ],
+      "spec": {
+       "version": 3,
+       "widgetType": "bar",
+       "encodings": {
+        "x": {
+         "fieldName": "service",
+         "scale": {
+          "type": "categorical"
+         },
+         "displayName": "Service"
+        },
+        "y": {
+         "fieldName": "sum(n)",
+         "scale": {
+          "type": "quantitative"
+         },
+         "displayName": "Share of post offices",
+         "format": {
+          "type": "number-percent",
+          "decimalPlaces": {
+           "type": "max",
+           "places": 0
+          }
+         }
+        },
+        "color": {
+         "fieldName": "bucket",
+         "scale": {
+          "type": "categorical",
+          "mappings": [
+           {
+            "value": "1 within 10 km",
+            "color": "#009E73"
+           },
+           {
+            "value": "2 10 to 25 km",
+            "color": "#56B4E9"
+           },
+           {
+            "value": "3 25 to 50 km",
+            "color": "#F0E442"
+           },
+           {
+            "value": "4 50 to 100 km",
+            "color": "#E69F00"
+           },
+           {
+            "value": "5 over 100 km",
+            "color": "#D55E00"
+           }
+          ]
+         },
+         "displayName": "bucket"
+        }
+       },
+       "mark": {
+        "layout": "stack-100"
+       },
+       "frame": {
+        "showTitle": true,
+        "title": "How far is the nearest facility with this service? (share of post offices)"
+       }
+      }
+     },
+     "position": {
+      "x": 0,
+      "y": 119,
+      "width": 8,
+      "height": 8
+     }
+    },
+    {
+     "widget": {
+      "name": "b_thin",
+      "queries": [
+       {
+        "name": "main_query",
+        "query": {
+         "datasetName": "ds_thin",
+         "fields": [
+          {
+           "name": "state",
+           "expression": "`state`"
+          },
+          {
+           "name": "sum(facilities)",
+           "expression": "SUM(`facilities`)"
+          }
+         ],
+         "disaggregated": false
+        }
+       }
+      ],
+      "spec": {
+       "version": 3,
+       "widgetType": "bar",
+       "encodings": {
+        "x": {
+         "fieldName": "sum(facilities)",
+         "scale": {
+          "type": "quantitative"
+         },
+         "displayName": "Facilities"
+        },
+        "y": {
+         "fieldName": "state",
+         "scale": {
+          "type": "categorical"
+         },
+         "displayName": "State"
+        }
+       },
+       "frame": {
+        "showTitle": true,
+        "title": "States with the fewest facilities"
+       }
+      }
+     },
+     "position": {
+      "x": 8,
+      "y": 119,
+      "width": 4,
+      "height": 8
+     }
+    }
+   ]
+  }
+ ],
+ "uiSettings": {
+  "theme": {
+   "canvasBackgroundColor": {
+    "light": "#FCFCFC",
+    "dark": "#1F272D"
+   },
+   "widgetBackgroundColor": {
+    "light": "#FFFFFF",
+    "dark": "#11171C"
+   },
+   "widgetBorderColor": {
+    "light": "#E6E9ED",
+    "dark": "#2A343C"
+   },
+   "fontColor": {
+    "light": "#11171C",
+    "dark": "#E8ECF0"
+   },
+   "selectionColor": {
+    "light": "#0072B2",
+    "dark": "#8ACAFF"
+   },
+   "visualizationColors": [
+    "#0072B2",
+    "#E69F00",
+    "#009E73",
+    "#CC79A7",
+    "#D55E00",
+    "#56B4E9",
+    "#F0E442"
+   ],
+   "widgetHeaderAlignment": "LEFT",
+   "widgetCornerRadius": 8
+  },
+  "genieSpace": {
+   "isEnabled": true,
+   "overrideId": "01f1e62c1f1517e9be55e49dd25b42ed",
+   "enablementMode": "ENABLED"
+  }
+ }
+}
