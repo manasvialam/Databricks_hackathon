@@ -543,6 +543,12 @@ export function App() {
                 ))}
               </div>
 
+              <button type="button" className="matters tap" onClick={() => setSheet("prefs")}>
+                <span className="quick-ico"><SlidersHorizontal size={20} strokeWidth={1.8} aria-hidden /></span>
+                <span className="matters-t">{t(lang, "prefs")}<small>{t(lang, "prefsHint")}</small></span>
+                <ChevronRight size={18} className="chev" aria-hidden />
+              </button>
+
               {hospitals.length > 0 && (
                 <>
                   <div style={{ padding: "6px 6px 0" }}>
@@ -560,6 +566,13 @@ export function App() {
             <>
               {rec.notes.length > 0 && <div className="notes">{rec.notes.map((n) => <p key={n.text}><Tx m={n} lang={lang} /></p>)}</div>}
               <Slip r={picked} lang={lang} services={rec.services} origin={loc} onWhy={() => setSheet("why")} onDirections={() => openMap({ name: picked.name, lat: picked.lat, lon: picked.lon, fallbackKm: picked.distanceKm, fallbackMinutes: picked.etaMinutes })} />
+              {rec.results.length <= 1 && (
+                <button type="button" className="matters tap" onClick={() => setSheet("prefs")}>
+                  <span className="quick-ico"><SlidersHorizontal size={20} strokeWidth={1.8} aria-hidden /></span>
+                  <span className="matters-t">{t(lang, "prefs")}<small>{t(lang, "prefsHint")}</small></span>
+                  <ChevronRight size={18} className="chev" aria-hidden />
+                </button>
+              )}
               {rec.results.length > 1 && (
                 <>
                   <div className="list-head">
